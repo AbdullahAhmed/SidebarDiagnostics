@@ -329,7 +329,25 @@ namespace SidebarDiagnostics.Framework {
                 return ResourceManager.GetString("CPULoadLabel", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to CPU Load Bar.
+        /// </summary>
+        public static string CPULoadBar {
+            get {
+                return ResourceManager.GetString("CPULoadBar", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Load.
+        /// </summary>
+        public static string CPULoadBarLabel {
+            get {
+                return ResourceManager.GetString("CPULoadBarLabel", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Temperature.
         /// </summary>
@@ -815,7 +833,43 @@ namespace SidebarDiagnostics.Framework {
                 return ResourceManager.GetString("NetworkOutLabel", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bandwidth In Load Bar.
+        /// </summary>
+        public static string NetworkInLoadBar {
+            get {
+                return ResourceManager.GetString("NetworkInLoadBar", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to In.
+        /// </summary>
+        public static string NetworkInLoadBarLabel {
+            get {
+                return ResourceManager.GetString("NetworkInLoadBarLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bandwidth Out Load Bar.
+        /// </summary>
+        public static string NetworkOutLoadBar {
+            get {
+                return ResourceManager.GetString("NetworkOutLoadBar", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Out.
+        /// </summary>
+        public static string NetworkOutLoadBarLabel {
+            get {
+                return ResourceManager.GetString("NetworkOutLoadBarLabel", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to RAM.
         /// </summary>
@@ -876,6 +930,24 @@ namespace SidebarDiagnostics.Framework {
         public static string RAMLoadLabel {
             get {
                 return ResourceManager.GetString("RAMLoadLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to RAM Load Bar.
+        /// </summary>
+        public static string RAMLoadBar {
+            get {
+                return ResourceManager.GetString("RAMLoadBar", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Load.
+        /// </summary>
+        public static string RAMLoadBarLabel {
+            get {
+                return ResourceManager.GetString("RAMLoadBarLabel", resourceCulture);
             }
         }
         
