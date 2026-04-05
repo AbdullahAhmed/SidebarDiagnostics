@@ -524,6 +524,12 @@ namespace SidebarDiagnostics.Monitoring
             {
                 if (disposing)
                 {
+                    if (_loadBarMetric != null)
+                    {
+                        _loadBarMetric.Dispose();
+                        _loadBarMetric = null;
+                    }
+
                     _hardware = null;
                 }
 
@@ -546,13 +552,6 @@ namespace SidebarDiagnostics.Monitoring
                 orderby n.Order descending, n.Name ascending
                 select new OHMMonitor(type, n.ID, n.Name ?? n.ActualName, hw, board, metrics, parameters)
                 ).ToArray();
-        }
-
-        public override void Update()
-        {
-            UpdateHardware();
-
-            base.Update();
         }
 
         private void UpdateHardware()
@@ -668,23 +667,27 @@ namespace SidebarDiagnostics.Monitoring
                 }
             }
 
+            bool _loadBarEnabled = metrics.IsEnabled(MetricKey.CPULoadBar);
             bool _loadEnabled = metrics.IsEnabled(MetricKey.CPULoad);
             bool _coreLoadEnabled = metrics.IsEnabled(MetricKey.CPUCoreLoad);
 
-            if (_loadEnabled || _coreLoadEnabled)
+            if (_loadBarEnabled || _loadEnabled || _coreLoadEnabled)
             {
                 ISensor[] _loadSensors = _hardware.Sensors.Where(s => s.SensorType == SensorType.Load).ToArray();
 
                 if (_loadSensors.Length > 0)
                 {
-                    if (_loadEnabled)
-                    {
-                        ISensor _totalCPU = _loadSensors.Where(s => s.Index == 0).FirstOrDefault();
+                    ISensor _totalCPU = _loadSensors.Where(s => s.Index == 0).FirstOrDefault();
 
-                        if (_totalCPU != null)
-                        {
-                            _sensorList.Add(new OHMMetric(_totalCPU, MetricKey.CPULoad, DataType.Percent, null, roundAll));
-                        }
+                    if (_loadBarEnabled && _totalCPU != null)
+                    {
+                        _loadBarMetric = new OHMMetric(_totalCPU, MetricKey.CPULoadBar, DataType.Percent, null, roundAll);
+                        ShowLoadBar = true;
+                    }
+
+                    if (_loadEnabled && _totalCPU != null)
+                    {
+                        _sensorList.Add(new OHMMetric(_totalCPU, MetricKey.CPULoad, DataType.Percent, null, roundAll));
                     }
 
                     if (_coreLoadEnabled)
@@ -739,13 +742,24 @@ namespace SidebarDiagnostics.Monitoring
                 }
             }
 
-            if (metrics.IsEnabled(MetricKey.RAMLoad))
+            bool _ramLoadBarEnabled = metrics.IsEnabled(MetricKey.RAMLoadBar);
+
+            if (_ramLoadBarEnabled || metrics.IsEnabled(MetricKey.RAMLoad))
             {
                 ISensor _loadSensor = _hardware.Sensors.Where(s => s.SensorType == SensorType.Load && s.Index == 0).FirstOrDefault();
 
                 if (_loadSensor != null)
                 {
-                    _sensorList.Add(new OHMMetric(_loadSensor, MetricKey.RAMLoad, DataType.Percent, null, roundAll));
+                    if (_ramLoadBarEnabled)
+                    {
+                        _loadBarMetric = new OHMMetric(_loadSensor, MetricKey.RAMLoadBar, DataType.Percent, null, roundAll);
+                        ShowLoadBar = true;
+                    }
+
+                    if (metrics.IsEnabled(MetricKey.RAMLoad))
+                    {
+                        _sensorList.Add(new OHMMetric(_loadSensor, MetricKey.RAMLoad, DataType.Percent, null, roundAll));
+                    }
                 }
             }
 
@@ -859,6 +873,44 @@ namespace SidebarDiagnostics.Monitoring
             }
 
             Metrics = _sensorList.ToArray();
+        }
+
+        public override void Update()
+        {
+            UpdateHardware();
+
+            if (_loadBarMetric != null)
+            {
+                _loadBarMetric.Update();
+            }
+
+            base.Update();
+        }
+
+        private bool _showLoadBar { get; set; }
+
+        public bool ShowLoadBar
+        {
+            get
+            {
+                return _showLoadBar;
+            }
+            private set
+            {
+                _showLoadBar = value;
+
+                NotifyPropertyChanged("ShowLoadBar");
+            }
+        }
+
+        private OHMMetric _loadBarMetric { get; set; }
+
+        public iMetric LoadBarMetric
+        {
+            get
+            {
+                return _loadBarMetric;
+            }
         }
 
         private IHardware _hardware { get; set; }
@@ -1207,6 +1259,18 @@ namespace SidebarDiagnostics.Monitoring
                 _metrics.Add(new PCMetric(new PerformanceCounter(CATEGORYNAME, BYTESSENTPERSECOND, id), MetricKey.NetworkOut, DataType.kbps, null, roundAll, bandwidthOutAlert, _converter));
             }
 
+            if (metrics.IsEnabled(MetricKey.NetworkInLoadBar))
+            {
+                _loadBarInMetric = new PCMetric(new PerformanceCounter(CATEGORYNAME, BYTESRECEIVEDPERSECOND, id), MetricKey.NetworkInLoadBar, DataType.Percent, null, roundAll, 0, PercentOf1GbpsConverter.Instance);
+                ShowLoadBarIn = true;
+            }
+
+            if (metrics.IsEnabled(MetricKey.NetworkOutLoadBar))
+            {
+                _loadBarOutMetric = new PCMetric(new PerformanceCounter(CATEGORYNAME, BYTESSENTPERSECOND, id), MetricKey.NetworkOutLoadBar, DataType.Percent, null, roundAll, 0, PercentOf1GbpsConverter.Instance);
+                ShowLoadBarOut = true;
+            }
+
             Metrics = _metrics.ToArray();
         }
 
@@ -1265,6 +1329,16 @@ namespace SidebarDiagnostics.Monitoring
             if (!PerformanceCounterCategory.InstanceExists(ID, CATEGORYNAME))
             {
                 return;
+            }
+
+            if (_loadBarInMetric != null)
+            {
+                _loadBarInMetric.Update();
+            }
+
+            if (_loadBarOutMetric != null)
+            {
+                _loadBarOutMetric.Update();
             }
 
             base.Update();
@@ -1331,6 +1405,85 @@ namespace SidebarDiagnostics.Monitoring
                 return "";
             }
         }
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    if (_loadBarInMetric != null)
+                    {
+                        _loadBarInMetric.Dispose();
+                        _loadBarInMetric = null;
+                    }
+
+                    if (_loadBarOutMetric != null)
+                    {
+                        _loadBarOutMetric.Dispose();
+                        _loadBarOutMetric = null;
+                    }
+                }
+
+                _disposed = true;
+            }
+        }
+
+        private bool _showLoadBarIn { get; set; }
+
+        public bool ShowLoadBarIn
+        {
+            get
+            {
+                return _showLoadBarIn;
+            }
+            private set
+            {
+                _showLoadBarIn = value;
+
+                NotifyPropertyChanged("ShowLoadBarIn");
+            }
+        }
+
+        private bool _showLoadBarOut { get; set; }
+
+        public bool ShowLoadBarOut
+        {
+            get
+            {
+                return _showLoadBarOut;
+            }
+            private set
+            {
+                _showLoadBarOut = value;
+
+                NotifyPropertyChanged("ShowLoadBarOut");
+            }
+        }
+
+        private PCMetric _loadBarInMetric { get; set; }
+
+        public iMetric LoadBarInMetric
+        {
+            get
+            {
+                return _loadBarInMetric;
+            }
+        }
+
+        private PCMetric _loadBarOutMetric { get; set; }
+
+        public iMetric LoadBarOutMetric
+        {
+            get
+            {
+                return _loadBarOutMetric;
+            }
+        }
+
+        private bool _disposed { get; set; } = false;
     }
 
     public interface iMetric : INotifyPropertyChanged, IDisposable
@@ -2080,14 +2233,15 @@ namespace SidebarDiagnostics.Monitoring
                         Enabled = true,
                         Order = 5,
                         Hardware = new HardwareConfig[0],
-                        Metrics = new MetricConfig[6]
+                        Metrics = new MetricConfig[7]
                         {
                             new MetricConfig(MetricKey.CPUClock, true),
                             new MetricConfig(MetricKey.CPUTemp, true),
                             new MetricConfig(MetricKey.CPUVoltage, true),
                             new MetricConfig(MetricKey.CPUFan, true),
                             new MetricConfig(MetricKey.CPULoad, true),
-                            new MetricConfig(MetricKey.CPUCoreLoad, true)
+                            new MetricConfig(MetricKey.CPUCoreLoad, true),
+                            new MetricConfig(MetricKey.CPULoadBar, false)
                         },
                         Params = new ConfigParam[6]
                         {
@@ -2105,13 +2259,14 @@ namespace SidebarDiagnostics.Monitoring
                         Enabled = true,
                         Order = 4,
                         Hardware = new HardwareConfig[0],
-                        Metrics = new MetricConfig[5]
+                        Metrics = new MetricConfig[6]
                         {
                             new MetricConfig(MetricKey.RAMClock, true),
                             new MetricConfig(MetricKey.RAMVoltage, true),
                             new MetricConfig(MetricKey.RAMLoad, true),
                             new MetricConfig(MetricKey.RAMUsed, true),
-                            new MetricConfig(MetricKey.RAMFree, true)
+                            new MetricConfig(MetricKey.RAMFree, true),
+                            new MetricConfig(MetricKey.RAMLoadBar, false)
                         },
                         Params = new ConfigParam[2]
                         {
@@ -2171,12 +2326,14 @@ namespace SidebarDiagnostics.Monitoring
                         Enabled = true,
                         Order = 1,
                         Hardware = new HardwareConfig[0],
-                        Metrics = new MetricConfig[4]
+                        Metrics = new MetricConfig[6]
                         {
                             new MetricConfig(MetricKey.NetworkIP, true),
                             new MetricConfig(MetricKey.NetworkExtIP, false),
                             new MetricConfig(MetricKey.NetworkIn, true),
-                            new MetricConfig(MetricKey.NetworkOut, true)
+                            new MetricConfig(MetricKey.NetworkOut, true),
+                            new MetricConfig(MetricKey.NetworkInLoadBar, false),
+                            new MetricConfig(MetricKey.NetworkOutLoadBar, false)
                         },
                         Params = new ConfigParam[5]
                         {
@@ -2414,7 +2571,12 @@ namespace SidebarDiagnostics.Monitoring
         DriveUsed = 22,
         DriveFree = 23,
         DriveRead = 24,
-        DriveWrite = 25
+        DriveWrite = 25,
+
+        CPULoadBar = 28,
+        RAMLoadBar = 29,
+        NetworkInLoadBar = 30,
+        NetworkOutLoadBar = 31
     }
 
     [JsonObject(MemberSerialization.OptIn)]
@@ -3018,6 +3180,57 @@ namespace SidebarDiagnostics.Monitoring
         }
     }
 
+    public class PercentOf1GbpsConverter : iConverter
+    {
+        private PercentOf1GbpsConverter() { }
+
+        // 1 Gbps = 1,000,000,000 bits/sec = 125,000,000 bytes/sec
+        private const double BYTES_PER_SECOND_1GBPS = 125_000_000d;
+
+        public void Convert(ref double value)
+        {
+            value = Math.Min(100d, value / BYTES_PER_SECOND_1GBPS * 100d);
+        }
+
+        public void Convert(ref double value, out double normalized, out DataType targetType)
+        {
+            Convert(ref value);
+            normalized = value;
+            targetType = DataType.Percent;
+        }
+
+        public DataType TargetType
+        {
+            get
+            {
+                return DataType.Percent;
+            }
+        }
+
+        public bool IsDynamic
+        {
+            get
+            {
+                return false;
+            }
+        }
+
+        private static PercentOf1GbpsConverter _instance { get; set; } = null;
+
+        public static PercentOf1GbpsConverter Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    _instance = new PercentOf1GbpsConverter();
+                }
+
+                return _instance;
+            }
+        }
+    }
+
     public static class Extensions
     {
         public static bool IsEnabled(this MetricConfig[] metrics, MetricKey key)
@@ -3160,6 +3373,18 @@ namespace SidebarDiagnostics.Monitoring
                 case MetricKey.DriveWrite:
                     return Resources.DriveWrite;
 
+                case MetricKey.CPULoadBar:
+                    return Resources.CPULoadBar;
+
+                case MetricKey.RAMLoadBar:
+                    return Resources.RAMLoadBar;
+
+                case MetricKey.NetworkInLoadBar:
+                    return Resources.NetworkInLoadBar;
+
+                case MetricKey.NetworkOutLoadBar:
+                    return Resources.NetworkOutLoadBar;
+
                 default:
                     return "Unknown";
             }
@@ -3252,6 +3477,18 @@ namespace SidebarDiagnostics.Monitoring
 
                 case MetricKey.DriveWrite:
                     return Resources.DriveWriteLabel;
+
+                case MetricKey.CPULoadBar:
+                    return Resources.CPULoadBarLabel;
+
+                case MetricKey.RAMLoadBar:
+                    return Resources.RAMLoadBarLabel;
+
+                case MetricKey.NetworkInLoadBar:
+                    return Resources.NetworkInLoadBarLabel;
+
+                case MetricKey.NetworkOutLoadBar:
+                    return Resources.NetworkOutLoadBarLabel;
 
                 default:
                     return "Unknown";

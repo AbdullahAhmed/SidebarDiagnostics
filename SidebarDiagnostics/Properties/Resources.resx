@@ -236,6 +236,14 @@
     <value>Load</value>
     <comment>Short label for CPU load metric</comment>
   </data>
+  <data name="CPULoadBar" xml:space="preserve">
+    <value>CPU Load Bar</value>
+    <comment>Full name for CPU load bar metric</comment>
+  </data>
+  <data name="CPULoadBarLabel" xml:space="preserve">
+    <value>Load</value>
+    <comment>Short label for CPU load bar metric</comment>
+  </data>
   <data name="CPUTempLabel" xml:space="preserve">
     <value>Temp</value>
     <comment>Short label for CPU temp metric</comment>
@@ -364,6 +372,22 @@
     <value>Out</value>
     <comment>Short label for network out metric</comment>
   </data>
+  <data name="NetworkInLoadBar" xml:space="preserve">
+    <value>Bandwidth In Load Bar</value>
+    <comment>Full name for network in load bar metric</comment>
+  </data>
+  <data name="NetworkInLoadBarLabel" xml:space="preserve">
+    <value>In</value>
+    <comment>Short label for network in load bar metric</comment>
+  </data>
+  <data name="NetworkOutLoadBar" xml:space="preserve">
+    <value>Bandwidth Out Load Bar</value>
+    <comment>Full name for network out load bar metric</comment>
+  </data>
+  <data name="NetworkOutLoadBarLabel" xml:space="preserve">
+    <value>Out</value>
+    <comment>Short label for network out load bar metric</comment>
+  </data>
   <data name="RAMClock" xml:space="preserve">
     <value>Clock</value>
     <comment>Full name for RAM clock metric</comment>
@@ -387,6 +411,14 @@
   <data name="RAMLoadLabel" xml:space="preserve">
     <value>Load</value>
     <comment>Short label for RAM load metric</comment>
+  </data>
+  <data name="RAMLoadBar" xml:space="preserve">
+    <value>RAM Load Bar</value>
+    <comment>Full name for RAM load bar metric</comment>
+  </data>
+  <data name="RAMLoadBarLabel" xml:space="preserve">
+    <value>Load</value>
+    <comment>Short label for RAM load bar metric</comment>
   </data>
   <data name="RAMUsed" xml:space="preserve">
     <value>Used</value>
