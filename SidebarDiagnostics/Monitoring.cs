@@ -38,6 +38,7 @@ namespace SidebarDiagnostics.Monitoring
             UpdateBoard();
 
             MonitorPanels = config.Where(c => c.Enabled).OrderByDescending(c => c.Order).Select(c => NewPanel(c)).ToArray();
+            _allMonitors = MonitorPanels.SelectMany(p => p.Monitors).ToArray();
         }
 
         public void Dispose()
@@ -60,6 +61,7 @@ namespace SidebarDiagnostics.Monitoring
                     _computer.Close();
 
                     _monitorPanels = null;
+                    _allMonitors = null;
                     _computer = null;
                     _board = null;
                 }
@@ -97,11 +99,13 @@ namespace SidebarDiagnostics.Monitoring
         {
             UpdateBoard();
 
-            foreach (iMonitor _monitor in MonitorPanels.SelectMany(p => p.Monitors))
+            foreach (iMonitor _monitor in _allMonitors)
             {
                 _monitor.Update();
             }
         }
+
+        private iMonitor[] _allMonitors { get; set; }
 
         public void NotifyPropertyChanged(string propertyName)
         {
@@ -1090,16 +1094,18 @@ namespace SidebarDiagnostics.Monitoring
                 _metrics.Add(LoadMetric);
             }
 
-            if (_usedEnabled)
+            // Always create Used/Free metrics when load bar is enabled so the badge
+            // can display values even if the user has unchecked the text rows.
+            if (_loadBarEnabled || _usedEnabled)
             {
                 UsedMetric = new BaseMetric(MetricKey.DriveUsed, DataType.Gigabyte, null, roundAll);
-                _metrics.Add(UsedMetric);
+                if (_usedEnabled) _metrics.Add(UsedMetric);
             }
 
-            if (_freeEnabled)
+            if (_loadBarEnabled || _freeEnabled)
             {
                 FreeMetric = new BaseMetric(MetricKey.DriveFree, DataType.Gigabyte, null, roundAll);
-                _metrics.Add(FreeMetric);
+                if (_freeEnabled) _metrics.Add(FreeMetric);
             }
 
             if (_readEnabled)
@@ -1510,7 +1516,7 @@ namespace SidebarDiagnostics.Monitoring
             {
                 HttpWebRequest _request = WebRequest.CreateHttp(Constants.URLs.IPIFY);
                 _request.Method = HttpMethod.Get.Method;
-                _request.Timeout = 5000;
+                _request.Timeout = 2000; // 2s max to avoid blocking UI thread too long at startup
 
                 using (HttpWebResponse _response = (HttpWebResponse)_request.GetResponse())
                 {

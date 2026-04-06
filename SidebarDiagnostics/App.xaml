@@ -43,6 +43,21 @@
             <conv:PercentConverter x:Key="PercentConverter" />
             <conv:TempColorConverter x:Key="TempColorConverter" />
 
+            <Style x:Key="MonitorSeparator" TargetType="{x:Type Separator}">
+                <Setter Property="Height" Value="1" />
+                <Setter Property="Margin" Value="0,0,0,0" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="Background" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontColor, Mode=OneWay}" />
+                <Setter Property="Opacity" Value="0.25" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Separator}">
+                            <Rectangle Height="1" Fill="{TemplateBinding Background}" Opacity="{TemplateBinding Opacity}" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <Style x:Key="SidebarWindow" TargetType="{x:Type win:AppBarWindow}">
                 <Setter Property="Title" Value="{x:Static frame:Resources.Sidebar}" />
                 <Setter Property="Icon" Value="Sidebar.ico" />
