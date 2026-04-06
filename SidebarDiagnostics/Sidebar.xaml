@@ -196,7 +196,7 @@
                                                                     <DataTrigger Binding="{Binding Path=ShowLoadBar, Mode=OneWay}" Value="True">
                                                                         <Setter Property="Content">
                                                                             <Setter.Value>
-                                                                                <ProgressBar DataContext="{Binding Path=LoadBarMetric}" Value="{Binding Path=Value, Mode=OneWay}" Style="{StaticResource DriveProgress}" />
+                                                                                <ProgressBar DataContext="{Binding Path=LoadBarMetric}" Value="{Binding Path=Value, Mode=OneWay}" Style="{StaticResource LabeledProgress}" />
                                                                             </Setter.Value>
                                                                         </Setter>
                                                                     </DataTrigger>
@@ -212,7 +212,7 @@
                                                                     <DataTrigger Binding="{Binding Path=ShowTempBar, Mode=OneWay}" Value="True">
                                                                         <Setter Property="Content">
                                                                             <Setter.Value>
-                                                                                <ProgressBar DataContext="{Binding Path=TempBarMetric}" Value="{Binding Path=Value, Mode=OneWay}" Style="{StaticResource TempProgress}" />
+                                                                                <ProgressBar DataContext="{Binding Path=TempBarMetric}" Value="{Binding Path=Value, Mode=OneWay}" Style="{StaticResource LabeledTempProgress}" />
                                                                             </Setter.Value>
                                                                         </Setter>
                                                                     </DataTrigger>
@@ -264,7 +264,7 @@
                                                                     <DataTrigger Binding="{Binding Path=ShowLoadBarIn, Mode=OneWay}" Value="True">
                                                                         <Setter Property="Content">
                                                                             <Setter.Value>
-                                                                                <ProgressBar DataContext="{Binding Path=LoadBarInMetric}" Value="{Binding Path=Value, Mode=OneWay}" Style="{StaticResource DriveProgress}" />
+                                                                                <ProgressBar DataContext="{Binding Path=LoadBarInMetric}" Value="{Binding Path=Value, Mode=OneWay}" Style="{StaticResource LabeledProgress}" />
                                                                             </Setter.Value>
                                                                         </Setter>
                                                                     </DataTrigger>
@@ -280,7 +280,7 @@
                                                                     <DataTrigger Binding="{Binding Path=ShowLoadBarOut, Mode=OneWay}" Value="True">
                                                                         <Setter Property="Content">
                                                                             <Setter.Value>
-                                                                                <ProgressBar DataContext="{Binding Path=LoadBarOutMetric}" Value="{Binding Path=Value, Mode=OneWay}" Style="{StaticResource DriveProgress}" />
+                                                                                <ProgressBar DataContext="{Binding Path=LoadBarOutMetric}" Value="{Binding Path=Value, Mode=OneWay}" Style="{StaticResource LabeledProgress}" />
                                                                             </Setter.Value>
                                                                         </Setter>
                                                                     </DataTrigger>

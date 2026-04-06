@@ -759,6 +759,14 @@ namespace SidebarDiagnostics.Framework
             }
         }
 
+        public int BarHeightText
+        {
+            get
+            {
+                return FontSize + 6;
+            }
+        }
+
         public int BarWidth
         {
             get
