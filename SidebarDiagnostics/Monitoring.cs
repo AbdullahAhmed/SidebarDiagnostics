@@ -536,6 +536,12 @@ namespace SidebarDiagnostics.Monitoring
                         _tempBarMetric = null;
                     }
 
+                    if (_vramLoadBarMetric != null)
+                    {
+                        _vramLoadBarMetric.Dispose();
+                        _vramLoadBarMetric = null;
+                    }
+
                     _hardware = null;
                 }
 
@@ -871,6 +877,31 @@ namespace SidebarDiagnostics.Monitoring
                 }
             }
 
+            bool _vramLoadBarEnabled = metrics.IsEnabled(MetricKey.VRAMLoadBar);
+
+            if (_vramLoadBarEnabled)
+            {
+                ISensor _memoryUsed = _hardware.Sensors.Where(s => (s.SensorType == SensorType.Data || s.SensorType == SensorType.SmallData) && s.Name == "GPU Memory Used").FirstOrDefault();
+                ISensor _memoryTotal = _hardware.Sensors.Where(s => (s.SensorType == SensorType.Data || s.SensorType == SensorType.SmallData) && s.Name == "GPU Memory Total").FirstOrDefault();
+
+                if (_memoryUsed != null && _memoryTotal != null)
+                {
+                    _vramLoadBarMetric = new GPUVRAMMLoadMetric(_memoryUsed, _memoryTotal, MetricKey.VRAMLoadBar, DataType.Percent, null, roundAll);
+                    ShowVRAMLoadBar = true;
+                }
+                else
+                {
+                    ISensor _vramLoad = _hardware.Sensors.Where(s => s.SensorType == SensorType.Load && s.Name.Contains("Memory")).FirstOrDefault() ??
+                        _hardware.Sensors.Where(s => s.SensorType == SensorType.Load && s.Index == 1).FirstOrDefault();
+
+                    if (_vramLoad != null)
+                    {
+                        _vramLoadBarMetric = new OHMMetric(_vramLoad, MetricKey.VRAMLoadBar, DataType.Percent, null, roundAll);
+                        ShowVRAMLoadBar = true;
+                    }
+                }
+            }
+
             if (metrics.IsEnabled(MetricKey.GPUVoltage))
             {
                 ISensor _voltage = _hardware.Sensors.Where(s => s.SensorType == SensorType.Voltage && s.Index == 0).FirstOrDefault();
@@ -929,6 +960,8 @@ namespace SidebarDiagnostics.Monitoring
                 _tempBarMetric.Update();
             }
 
+            _vramLoadBarMetric?.Update();
+
             base.Update();
         }
 
@@ -982,6 +1015,25 @@ namespace SidebarDiagnostics.Monitoring
             {
                 return _tempBarMetric;
             }
+        }
+
+        private bool _showVRAMLoadBar { get; set; }
+
+        public bool ShowVRAMLoadBar
+        {
+            get { return _showVRAMLoadBar; }
+            private set
+            {
+                _showVRAMLoadBar = value;
+                NotifyPropertyChanged("ShowVRAMLoadBar");
+            }
+        }
+
+        private BaseMetric _vramLoadBarMetric { get; set; }
+
+        public iMetric VRAMLoadBarMetric
+        {
+            get { return _vramLoadBarMetric; }
         }
 
         private IHardware _hardware { get; set; }
@@ -1332,13 +1384,13 @@ namespace SidebarDiagnostics.Monitoring
 
             if (metrics.IsEnabled(MetricKey.NetworkInLoadBar))
             {
-                _loadBarInMetric = new PCMetric(new PerformanceCounter(CATEGORYNAME, BYTESRECEIVEDPERSECOND, id), MetricKey.NetworkInLoadBar, DataType.Percent, null, roundAll, 0, PercentOf1GbpsConverter.Instance);
+                _loadBarInMetric = new NetworkBarMetric(new PerformanceCounter(CATEGORYNAME, BYTESRECEIVEDPERSECOND, id), MetricKey.NetworkInLoadBar, null, roundAll, _converter);
                 ShowLoadBarIn = true;
             }
 
             if (metrics.IsEnabled(MetricKey.NetworkOutLoadBar))
             {
-                _loadBarOutMetric = new PCMetric(new PerformanceCounter(CATEGORYNAME, BYTESSENTPERSECOND, id), MetricKey.NetworkOutLoadBar, DataType.Percent, null, roundAll, 0, PercentOf1GbpsConverter.Instance);
+                _loadBarOutMetric = new NetworkBarMetric(new PerformanceCounter(CATEGORYNAME, BYTESSENTPERSECOND, id), MetricKey.NetworkOutLoadBar, null, roundAll, _converter);
                 ShowLoadBarOut = true;
             }
 
@@ -1534,7 +1586,7 @@ namespace SidebarDiagnostics.Monitoring
             }
         }
 
-        private PCMetric _loadBarInMetric { get; set; }
+        private NetworkBarMetric _loadBarInMetric { get; set; }
 
         public iMetric LoadBarInMetric
         {
@@ -1544,7 +1596,7 @@ namespace SidebarDiagnostics.Monitoring
             }
         }
 
-        private PCMetric _loadBarOutMetric { get; set; }
+        private NetworkBarMetric _loadBarOutMetric { get; set; }
 
         public iMetric LoadBarOutMetric
         {
@@ -2067,6 +2119,51 @@ namespace SidebarDiagnostics.Monitoring
         private bool _disposed { get; set; } = false;
     }
 
+    public class NetworkBarMetric : PCMetric
+    {
+        private PerformanceCounter _bandwidthCounter;
+        private iConverter _displayConverter;
+        private bool _round;
+
+        public NetworkBarMetric(PerformanceCounter counter, MetricKey key, string label, bool round, iConverter displayConverter)
+            : base(counter, key, DataType.Percent, label, round, 0, PercentOf1GbpsConverter.Instance)
+        {
+            _bandwidthCounter = counter;
+            _displayConverter = displayConverter;
+            _round = round;
+        }
+
+        public override void Update()
+        {
+            double raw = _bandwidthCounter.NextValue();
+
+            // Bar value: 0-100% of 1Gbps (125,000,000 bytes/sec = 1Gbps)
+            Value = Math.Min(100d, raw / 125_000_000d * 100d);
+
+            // Display text: formatted bandwidth using the display converter
+            double displayVal = raw;
+            string append;
+            if (_displayConverter != null && _displayConverter.IsDynamic)
+            {
+                double nVal;
+                DataType dt;
+                _displayConverter.Convert(ref displayVal, out nVal, out dt);
+                append = dt.GetAppend();
+            }
+            else if (_displayConverter != null)
+            {
+                _displayConverter.Convert(ref displayVal);
+                append = _displayConverter.TargetType.GetAppend();
+            }
+            else
+            {
+                append = DataType.kBps.GetAppend();
+            }
+
+            Text = string.Format("{0:#,##0.##}{1}", displayVal.Round(_round), append);
+        }
+    }
+
     [Serializable]
     public enum MonitorType : byte
     {
@@ -2352,7 +2449,7 @@ namespace SidebarDiagnostics.Monitoring
                         Enabled = true,
                         Order = 3,
                         Hardware = new HardwareConfig[0],
-                        Metrics = new MetricConfig[9]
+                        Metrics = new MetricConfig[10]
                         {
                             new MetricConfig(MetricKey.GPUCoreClock, true),
                             new MetricConfig(MetricKey.GPUVRAMClock, true),
@@ -2362,7 +2459,8 @@ namespace SidebarDiagnostics.Monitoring
                             new MetricConfig(MetricKey.GPUTemp, true),
                             new MetricConfig(MetricKey.GPUFan, true),
                             new MetricConfig(MetricKey.GPULoadBar, false),
-                            new MetricConfig(MetricKey.GPUTempBar, false)
+                            new MetricConfig(MetricKey.GPUTempBar, false),
+                            new MetricConfig(MetricKey.VRAMLoadBar, false)
                         },
                         Params = new ConfigParam[5]
                         {
@@ -2654,7 +2752,9 @@ namespace SidebarDiagnostics.Monitoring
 
         GPULoadBar = 32,
         CPUTempBar = 33,
-        GPUTempBar = 34
+        GPUTempBar = 34,
+
+        VRAMLoadBar = 35
     }
 
     [JsonObject(MemberSerialization.OptIn)]
@@ -3472,6 +3572,9 @@ namespace SidebarDiagnostics.Monitoring
                 case MetricKey.GPUTempBar:
                     return Resources.GPUTempBar;
 
+                case MetricKey.VRAMLoadBar:
+                    return Resources.VRAMLoadBar;
+
                 default:
                     return "Unknown";
             }
@@ -3585,6 +3688,9 @@ namespace SidebarDiagnostics.Monitoring
 
                 case MetricKey.GPUTempBar:
                     return Resources.GPUTempBarLabel;
+
+                case MetricKey.VRAMLoadBar:
+                    return Resources.VRAMLoadBarLabel;
 
                 default:
                     return "Unknown";

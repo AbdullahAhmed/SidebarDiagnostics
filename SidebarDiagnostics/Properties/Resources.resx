@@ -412,6 +412,14 @@
     <value>Temp</value>
     <comment>Short label for GPU temperature bar metric</comment>
   </data>
+  <data name="VRAMLoadBar" xml:space="preserve">
+    <value>VRAM Load Bar</value>
+    <comment>Full name for VRAM load bar metric</comment>
+  </data>
+  <data name="VRAMLoadBarLabel" xml:space="preserve">
+    <value>VRAM</value>
+    <comment>Short label for VRAM load bar metric</comment>
+  </data>
   <data name="RAMClock" xml:space="preserve">
     <value>Clock</value>
     <comment>Full name for RAM clock metric</comment>

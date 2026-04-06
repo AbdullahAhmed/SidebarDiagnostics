@@ -925,6 +925,24 @@ namespace SidebarDiagnostics.Framework {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to VRAM Load Bar.
+        /// </summary>
+        public static string VRAMLoadBar {
+            get {
+                return ResourceManager.GetString("VRAMLoadBar", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to VRAM.
+        /// </summary>
+        public static string VRAMLoadBarLabel {
+            get {
+                return ResourceManager.GetString("VRAMLoadBarLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to RAM.
         /// </summary>
         public static string RAM {

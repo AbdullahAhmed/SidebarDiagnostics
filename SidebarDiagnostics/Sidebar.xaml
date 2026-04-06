@@ -209,6 +209,22 @@
                                                         <ContentControl.Style>
                                                             <Style TargetType="{x:Type ContentControl}">
                                                                 <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Path=ShowVRAMLoadBar, Mode=OneWay}" Value="True">
+                                                                        <Setter Property="Content">
+                                                                            <Setter.Value>
+                                                                                <ProgressBar DataContext="{Binding Path=VRAMLoadBarMetric}" Value="{Binding Path=Value, Mode=OneWay}" Style="{StaticResource LabeledProgress}" />
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ContentControl.Style>
+                                                    </ContentControl>
+
+                                                    <ContentControl>
+                                                        <ContentControl.Style>
+                                                            <Style TargetType="{x:Type ContentControl}">
+                                                                <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding Path=ShowTempBar, Mode=OneWay}" Value="True">
                                                                         <Setter Property="Content">
                                                                             <Setter.Value>
@@ -323,7 +339,7 @@
                                                                             <Setter.Value>
                                                                                 <StackPanel Style="{StaticResource VerticalPanel}">
                                                                                     <TextBlock Text="{Binding Path=Name, Mode=OneWay}" Style="{StaticResource DataText}" />
-                                                                                    <ProgressBar DataContext="{Binding Path=LoadMetric}" Value="{Binding Path=Value, Mode=OneWay}" Style="{StaticResource DriveProgress}" />
+                                                                                    <ProgressBar Value="{Binding Path=LoadMetric.Value, Mode=OneWay}" Style="{StaticResource DriveLabeledProgress}" />
                                                                                 </StackPanel>
                                                                             </Setter.Value>
                                                                         </Setter>
@@ -334,7 +350,7 @@
                                                                             <Setter.Value>
                                                                                 <StackPanel Orientation="Horizontal">
                                                                                     <TextBlock Text="{Binding Path=Name, Mode=OneWay}" Width="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.FontSize, Mode=OneWay}" Style="{StaticResource DataText}" />
-                                                                                    <ProgressBar DataContext="{Binding Path=LoadMetric}" Value="{Binding Path=Value, Mode=OneWay}" Margin="8,2,0,0" Width="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.BarWidth, Mode=OneWay}" Style="{StaticResource DriveProgress}" />
+                                                                                    <ProgressBar Value="{Binding Path=LoadMetric.Value, Mode=OneWay}" Margin="8,2,0,0" Style="{StaticResource DriveLabeledProgress}" />
                                                                                 </StackPanel>
                                                                             </Setter.Value>
                                                                         </Setter>
