@@ -2304,7 +2304,7 @@ namespace SidebarDiagnostics.Monitoring
                         Enabled = true,
                         Order = 5,
                         Hardware = new HardwareConfig[0],
-                        Metrics = new MetricConfig[7]
+                        Metrics = new MetricConfig[8]
                         {
                             new MetricConfig(MetricKey.CPUClock, true),
                             new MetricConfig(MetricKey.CPUTemp, true),
@@ -2312,7 +2312,8 @@ namespace SidebarDiagnostics.Monitoring
                             new MetricConfig(MetricKey.CPUFan, true),
                             new MetricConfig(MetricKey.CPULoad, true),
                             new MetricConfig(MetricKey.CPUCoreLoad, true),
-                            new MetricConfig(MetricKey.CPULoadBar, false)
+                            new MetricConfig(MetricKey.CPULoadBar, false),
+                            new MetricConfig(MetricKey.CPUTempBar, false)
                         },
                         Params = new ConfigParam[6]
                         {
@@ -2351,7 +2352,7 @@ namespace SidebarDiagnostics.Monitoring
                         Enabled = true,
                         Order = 3,
                         Hardware = new HardwareConfig[0],
-                        Metrics = new MetricConfig[10]
+                        Metrics = new MetricConfig[9]
                         {
                             new MetricConfig(MetricKey.GPUCoreClock, true),
                             new MetricConfig(MetricKey.GPUVRAMClock, true),
@@ -2361,8 +2362,7 @@ namespace SidebarDiagnostics.Monitoring
                             new MetricConfig(MetricKey.GPUTemp, true),
                             new MetricConfig(MetricKey.GPUFan, true),
                             new MetricConfig(MetricKey.GPULoadBar, false),
-                            new MetricConfig(MetricKey.GPUTempBar, false),
-                            new MetricConfig(MetricKey.CPUTempBar, false)
+                            new MetricConfig(MetricKey.GPUTempBar, false)
                         },
                         Params = new ConfigParam[5]
                         {
