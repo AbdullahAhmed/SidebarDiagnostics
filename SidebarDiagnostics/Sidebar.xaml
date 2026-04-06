@@ -378,6 +378,27 @@
                                                     </ItemsControl>
                                                 </StackPanel>
                                             </DataTemplate>
+                                            <DataTemplate DataType="{x:Type monitor:ProcessMonitor}">
+                                                <StackPanel Style="{StaticResource MonitorPanel}">
+                                                    <ItemsControl ItemsSource="{Binding Path=TopProcesses, Mode=OneWay}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="{x:Type monitor:ProcessEntry}">
+                                                                <DockPanel Style="{StaticResource MetricPanel}">
+                                                                    <Button DockPanel.Dock="Right" Command="{Binding KillCommand}" Style="{StaticResource KillButton}" />
+                                                                    <TextBlock Text="{Binding RamText, Mode=OneWay}" DockPanel.Dock="Right" Style="{StaticResource MetricValue}" />
+                                                                    <TextBlock Text="{Binding CpuText, Mode=OneWay}" DockPanel.Dock="Right" Style="{StaticResource MetricValue}" Margin="0,0,4,0" />
+                                                                    <TextBlock Text="{Binding Name, Mode=OneWay}" Style="{StaticResource MetricLabel}" TextTrimming="CharacterEllipsis" />
+                                                                </DockPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <StackPanel Style="{StaticResource VerticalPanel}" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </DataTemplate>
                                         </ItemsControl.Resources>
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>

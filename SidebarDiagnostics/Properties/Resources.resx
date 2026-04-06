@@ -1096,6 +1096,10 @@
     <value>Ext</value>
     <comment>Short label for network ext IP address metric</comment>
   </data>
+  <data name="Processes" xml:space="preserve">
+    <value>Processes</value>
+    <comment>Process monitor section title</comment>
+  </data>
   <data name="SettingsShowMachineName" xml:space="preserve">
     <value>Show PC Name</value>
     <comment>Settings show machine name label</comment>

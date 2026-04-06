@@ -2282,5 +2282,14 @@ namespace SidebarDiagnostics.Framework {
                 return ResourceManager.GetString("UpdateTitle", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Processes.
+        /// </summary>
+        public static string Processes {
+            get {
+                return ResourceManager.GetString("Processes", resourceCulture);
+            }
+        }
     }
 }

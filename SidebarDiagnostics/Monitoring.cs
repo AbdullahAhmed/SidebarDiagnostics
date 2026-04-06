@@ -90,6 +90,9 @@ namespace SidebarDiagnostics.Monitoring
                 case MonitorType.Network:
                     return NetworkMonitor.GetHardware().ToArray();
 
+                case MonitorType.Process:
+                    return new HardwareConfig[0];
+
                 default:
                     throw new ArgumentException("Invalid MonitorType.");
             }
@@ -172,6 +175,12 @@ namespace SidebarDiagnostics.Monitoring
                         config.Params
                         );
 
+                case MonitorType.Process:
+                    return ProcessPanel(
+                        config.Type,
+                        config.Params
+                        );
+
                 default:
                     throw new ArgumentException("Invalid MonitorType.");
             }
@@ -201,6 +210,18 @@ namespace SidebarDiagnostics.Monitoring
                 type.GetDescription(),
                 "M 40,44L 39.9999,51L 44,51C 45.1046,51 46,51.8954 46,53L 46,57C 46,58.1046 45.1045,59 44,59L 32,59C 30.8954,59 30,58.1046 30,57L 30,53C 30,51.8954 30.8954,51 32,51L 36,51L 36,44L 40,44 Z M 47,53L 57,53L 57,57L 47,57L 47,53 Z M 29,53L 29,57L 19,57L 19,53L 29,53 Z M 19,22L 57,22L 57,31L 19,31L 19,22 Z M 55,24L 53,24L 53,29L 55,29L 55,24 Z M 51,24L 49,24L 49,29L 51,29L 51,24 Z M 47,24L 45,24L 45,29L 47,29L 47,24 Z M 21,27L 21,29L 23,29L 23,27L 21,27 Z M 19,33L 57,33L 57,42L 19,42L 19,33 Z M 55,35L 53,35L 53,40L 55,40L 55,35 Z M 51,35L 49,35L 49,40L 51,40L 51,35 Z M 47,35L 45,35L 45,40L 47,40L 47,35 Z M 21,38L 21,40L 23,40L 23,38L 21,38 Z",
                 NetworkMonitor.GetInstances(hardwareConfig, metrics, parameters)
+                );
+        }
+
+        private MonitorPanel ProcessPanel(MonitorType type, ConfigParam[] parameters)
+        {
+            int count = parameters.GetValue<int>(ParamKey.ProcessCount);
+            bool sortByCpu = parameters.GetValue<bool>(ParamKey.ProcessSortByCpu);
+
+            return new MonitorPanel(
+                type.GetDescription(),
+                "M 19,28L 57,28L 57,50L 19,50L 19,28 Z M 21,30L 21,48L 55,48L 55,30L 21,30 Z M 23,32L 35,32L 35,34L 23,34L 23,32 Z M 23,36L 45,36L 45,38L 23,38L 23,36 Z M 23,40L 40,40L 40,42L 23,42L 23,40 Z M 23,44L 35,44L 35,46L 23,46L 23,44 Z M 47,32L 53,32L 53,46L 47,46L 47,32 Z M 49,34L 51,34L 51,44L 49,44L 49,34 Z",
+                new ProcessMonitor(count, sortByCpu)
                 );
         }
 
@@ -2177,7 +2198,8 @@ namespace SidebarDiagnostics.Monitoring
         RAM,
         GPU,
         HD,
-        Network
+        Network,
+        Process
     }
 
     [JsonObject(MemberSerialization.OptIn)]
@@ -2399,7 +2421,7 @@ namespace SidebarDiagnostics.Monitoring
         {
             get
             {
-                return new MonitorConfig[5]
+                return new MonitorConfig[6]
                 {
                     new MonitorConfig()
                     {
@@ -2520,6 +2542,19 @@ namespace SidebarDiagnostics.Monitoring
                             ConfigParam.Defaults.UseBytes,
                             ConfigParam.Defaults.BandwidthInAlert,
                             ConfigParam.Defaults.BandwidthOutAlert
+                        }
+                    },
+                    new MonitorConfig()
+                    {
+                        Type = MonitorType.Process,
+                        Enabled = false,
+                        Order = 0,
+                        Hardware = new HardwareConfig[0],
+                        Metrics = new MetricConfig[0],
+                        Params = new ConfigParam[2]
+                        {
+                            ConfigParam.Defaults.ProcessCount,
+                            ConfigParam.Defaults.ProcessSortByCpu
                         }
                     }
                 };
@@ -3072,6 +3107,22 @@ namespace SidebarDiagnostics.Monitoring
                     return new ConfigParam() { Key = ParamKey.UseGHz, Value = false };
                 }
             }
+
+            public static ConfigParam ProcessCount
+            {
+                get
+                {
+                    return new ConfigParam() { Key = ParamKey.ProcessCount, Value = 5 };
+                }
+            }
+
+            public static ConfigParam ProcessSortByCpu
+            {
+                get
+                {
+                    return new ConfigParam() { Key = ParamKey.ProcessSortByCpu, Value = true };
+                }
+            }
         }
     }
 
@@ -3091,7 +3142,9 @@ namespace SidebarDiagnostics.Monitoring
         RoundAll,
         DriveSpace,
         DriveIO,
-        UseGHz
+        UseGHz,
+        ProcessCount,
+        ProcessSortByCpu
     }
 
     public enum DataType : byte
@@ -3459,6 +3512,9 @@ namespace SidebarDiagnostics.Monitoring
                 case MonitorType.Network:
                     return Resources.Network;
 
+                case MonitorType.Process:
+                    return Resources.Processes;
+
                 default:
                     throw new ArgumentException("Invalid MonitorType.");
             }
@@ -3793,5 +3849,175 @@ namespace SidebarDiagnostics.Monitoring
 
             return Math.Round(value);
         }
+    }
+
+    public class RelayCommand : System.Windows.Input.ICommand
+    {
+        private readonly Action _execute;
+
+        public RelayCommand(Action execute)
+        {
+            _execute = execute ?? throw new ArgumentNullException("execute");
+        }
+
+        public bool CanExecute(object parameter) => true;
+
+        public void Execute(object parameter) => _execute();
+
+        public event EventHandler CanExecuteChanged { add { } remove { } }
+    }
+
+    public class ProcessEntry : INotifyPropertyChanged
+    {
+        public ProcessEntry(int pid, string name, string cpuText, string ramText, RelayCommand killCommand)
+        {
+            Pid = pid;
+            Name = name;
+            CpuText = cpuText;
+            RamText = ramText;
+            KillCommand = killCommand;
+        }
+
+        public void NotifyPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        public int Pid { get; }
+
+        private string _name;
+        public string Name
+        {
+            get { return _name; }
+            set { _name = value; NotifyPropertyChanged("Name"); }
+        }
+
+        private string _cpuText;
+        public string CpuText
+        {
+            get { return _cpuText; }
+            set { _cpuText = value; NotifyPropertyChanged("CpuText"); }
+        }
+
+        private string _ramText;
+        public string RamText
+        {
+            get { return _ramText; }
+            set { _ramText = value; NotifyPropertyChanged("RamText"); }
+        }
+
+        public RelayCommand KillCommand { get; }
+    }
+
+    public class ProcessMonitor : BaseMonitor
+    {
+        private struct ProcessSnapshot
+        {
+            public TimeSpan CpuTime;
+            public DateTime WallTime;
+        }
+
+        private struct ProcessInfo
+        {
+            public string Name;
+            public int Pid;
+            public double Cpu;
+            public double RamMb;
+        }
+
+        private readonly int _count;
+        private readonly bool _sortByCpu;
+        private readonly int _processorCount;
+        private Dictionary<int, ProcessSnapshot> _prevData = new Dictionary<int, ProcessSnapshot>();
+
+        public ProcessMonitor(int count, bool sortByCpu) : base("process", "Processes", false)
+        {
+            _count = count;
+            _sortByCpu = sortByCpu;
+            _processorCount = Math.Max(1, Environment.ProcessorCount);
+            Metrics = new iMetric[0];
+            TopProcesses = new ObservableCollection<ProcessEntry>();
+        }
+
+        public override void Update()
+        {
+            Process[] procs;
+            try { procs = Process.GetProcesses(); }
+            catch { return; }
+
+            DateTime now = DateTime.UtcNow;
+            Dictionary<int, ProcessSnapshot> currentData = new Dictionary<int, ProcessSnapshot>(procs.Length);
+            List<ProcessInfo> entries = new List<ProcessInfo>(procs.Length);
+
+            foreach (Process p in procs)
+            {
+                try
+                {
+                    TimeSpan totalCpuTime = p.TotalProcessorTime;
+                    currentData[p.Id] = new ProcessSnapshot { CpuTime = totalCpuTime, WallTime = now };
+
+                    double cpuPercent = 0;
+                    ProcessSnapshot prev;
+                    if (_prevData.TryGetValue(p.Id, out prev))
+                    {
+                        double elapsedCpu = (totalCpuTime - prev.CpuTime).TotalSeconds;
+                        double elapsedWall = (now - prev.WallTime).TotalSeconds;
+                        if (elapsedWall > 0)
+                            cpuPercent = Math.Min(100, elapsedCpu / elapsedWall / _processorCount * 100);
+                    }
+
+                    double ramMb = p.WorkingSet64 / 1048576.0;
+                    entries.Add(new ProcessInfo { Name = p.ProcessName, Pid = p.Id, Cpu = cpuPercent, RamMb = ramMb });
+                }
+                catch { }
+                finally
+                {
+                    p.Dispose();
+                }
+            }
+
+            _prevData = currentData;
+
+            List<ProcessInfo> sorted;
+            if (_sortByCpu)
+                sorted = entries.OrderByDescending(e => e.Cpu).ThenByDescending(e => e.RamMb).Take(_count).ToList();
+            else
+                sorted = entries.OrderByDescending(e => e.RamMb).ThenByDescending(e => e.Cpu).Take(_count).ToList();
+
+            TopProcesses.Clear();
+            foreach (ProcessInfo info in sorted)
+            {
+                string cpuText = string.Format("{0:0.0}%", info.Cpu);
+                string ramText = info.RamMb >= 1024
+                    ? string.Format("{0:0.0} GB", info.RamMb / 1024.0)
+                    : string.Format("{0:0} MB", info.RamMb);
+                int capturedPid = info.Pid;
+                TopProcesses.Add(new ProcessEntry(
+                    info.Pid, info.Name, cpuText, ramText,
+                    new RelayCommand(() => KillProcess(capturedPid))
+                ));
+            }
+        }
+
+        private void KillProcess(int pid)
+        {
+            try
+            {
+                Process p = Process.GetProcessById(pid);
+                string procName = p.ProcessName;
+                System.Windows.MessageBoxResult result = System.Windows.MessageBox.Show(
+                    string.Format("Kill '{0}' (PID {1})?", procName, pid),
+                    "Kill Process",
+                    System.Windows.MessageBoxButton.YesNo,
+                    System.Windows.MessageBoxImage.Warning);
+                if (result == System.Windows.MessageBoxResult.Yes)
+                    p.Kill();
+            }
+            catch { }
+        }
+
+        public ObservableCollection<ProcessEntry> TopProcesses { get; private set; }
     }
 }
