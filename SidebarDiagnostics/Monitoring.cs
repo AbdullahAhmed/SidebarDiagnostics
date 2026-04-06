@@ -3659,7 +3659,7 @@ namespace SidebarDiagnostics.Monitoring
                     return " RPM";
 
                 case DataType.Celcius:
-                    return " C";
+                    return " °C";
 
                 case DataType.Fahrenheit:
                     return " F";
