@@ -261,7 +261,7 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- Labeled load bar: fills width, shows "Label: Value" text inside with white/shadow for contrast -->
+            <!-- Labeled load bar: fills width, shows "Label: Value" text inside with dark-badge contrast technique -->
             <Style x:Key="LabeledProgress" TargetType="{x:Type ProgressBar}">
                 <Setter Property="Minimum" Value="0" />
                 <Setter Property="Maximum" Value="100" />
@@ -278,12 +278,11 @@
                                 <Border Name="PART_Track" CornerRadius="2" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding Foreground}" BorderThickness="1">
                                     <Border Name="PART_Indicator" CornerRadius="2,0,0,2" Background="{TemplateBinding Foreground}" BorderBrush="{TemplateBinding Background}" BorderThickness="1" HorizontalAlignment="Left" />
                                 </Border>
-                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.FontSize, Mode=OneWay}" IsHitTestVisible="False" Margin="4,0">
-                                    <TextBlock.Effect>
-                                        <DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="3" Opacity="1" />
-                                    </TextBlock.Effect>
-                                    <Run Text="{Binding Label, Mode=OneWay}" /><Run Text=": " /><Run Text="{Binding Text, Mode=OneWay}" />
-                                </TextBlock>
+                                <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="#CC000000" CornerRadius="2" Padding="6,1" IsHitTestVisible="False">
+                                    <TextBlock Foreground="White" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.FontSize, Mode=OneWay}">
+                                        <Run Text="{Binding Label, Mode=OneWay}" /><Run Text=": " /><Run Text="{Binding Text, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Border>
                             </Grid>
                             <ControlTemplate.Triggers>
                                 <DataTrigger Binding="{Binding Path=IsAlert, Mode=OneWay}" Value="True">
@@ -311,12 +310,11 @@
                                 <Border Name="PART_Track" CornerRadius="2" Background="{TemplateBinding Background}" BorderBrush="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Value, Converter={StaticResource TempColorConverter}}" BorderThickness="1">
                                     <Border Name="PART_Indicator" CornerRadius="2,0,0,2" Background="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Value, Converter={StaticResource TempColorConverter}}" BorderBrush="{TemplateBinding Background}" BorderThickness="1" HorizontalAlignment="Left" />
                                 </Border>
-                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.FontSize, Mode=OneWay}" IsHitTestVisible="False" Margin="4,0">
-                                    <TextBlock.Effect>
-                                        <DropShadowEffect Color="Black" ShadowDepth="0" BlurRadius="3" Opacity="1" />
-                                    </TextBlock.Effect>
-                                    <Run Text="{Binding Label, Mode=OneWay}" /><Run Text=": " /><Run Text="{Binding Text, Mode=OneWay}" />
-                                </TextBlock>
+                                <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="#CC000000" CornerRadius="2" Padding="6,1" IsHitTestVisible="False">
+                                    <TextBlock Foreground="White" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.FontSize, Mode=OneWay}">
+                                        <Run Text="{Binding Label, Mode=OneWay}" /><Run Text=": " /><Run Text="{Binding Text, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Border>
                             </Grid>
                         </ControlTemplate>
                     </Setter.Value>
