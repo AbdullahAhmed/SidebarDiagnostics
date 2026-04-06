@@ -388,6 +388,30 @@
     <value>Out</value>
     <comment>Short label for network out load bar metric</comment>
   </data>
+  <data name="GPULoadBar" xml:space="preserve">
+    <value>GPU Load Bar</value>
+    <comment>Full name for GPU load bar metric</comment>
+  </data>
+  <data name="GPULoadBarLabel" xml:space="preserve">
+    <value>Load</value>
+    <comment>Short label for GPU load bar metric</comment>
+  </data>
+  <data name="CPUTempBar" xml:space="preserve">
+    <value>CPU Temp Bar</value>
+    <comment>Full name for CPU temperature bar metric</comment>
+  </data>
+  <data name="CPUTempBarLabel" xml:space="preserve">
+    <value>Temp</value>
+    <comment>Short label for CPU temperature bar metric</comment>
+  </data>
+  <data name="GPUTempBar" xml:space="preserve">
+    <value>GPU Temp Bar</value>
+    <comment>Full name for GPU temperature bar metric</comment>
+  </data>
+  <data name="GPUTempBarLabel" xml:space="preserve">
+    <value>Temp</value>
+    <comment>Short label for GPU temperature bar metric</comment>
+  </data>
   <data name="RAMClock" xml:space="preserve">
     <value>Clock</value>
     <comment>Full name for RAM clock metric</comment>

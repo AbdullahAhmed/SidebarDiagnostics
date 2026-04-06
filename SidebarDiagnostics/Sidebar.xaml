@@ -205,6 +205,22 @@
                                                         </ContentControl.Style>
                                                     </ContentControl>
 
+                                                    <ContentControl>
+                                                        <ContentControl.Style>
+                                                            <Style TargetType="{x:Type ContentControl}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Path=ShowTempBar, Mode=OneWay}" Value="True">
+                                                                        <Setter Property="Content">
+                                                                            <Setter.Value>
+                                                                                <ProgressBar DataContext="{Binding Path=TempBarMetric}" Value="{Binding Path=Value, Mode=OneWay}" Style="{StaticResource TempProgress}" />
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ContentControl.Style>
+                                                    </ContentControl>
+
                                                     <ItemsControl ItemsSource="{Binding Path=Metrics, Mode=OneWay}">
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate DataType="{x:Type monitor:iMetric}">

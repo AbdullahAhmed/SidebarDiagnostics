@@ -871,6 +871,60 @@ namespace SidebarDiagnostics.Framework {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to GPU Load Bar.
+        /// </summary>
+        public static string GPULoadBar {
+            get {
+                return ResourceManager.GetString("GPULoadBar", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Load.
+        /// </summary>
+        public static string GPULoadBarLabel {
+            get {
+                return ResourceManager.GetString("GPULoadBarLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to CPU Temp Bar.
+        /// </summary>
+        public static string CPUTempBar {
+            get {
+                return ResourceManager.GetString("CPUTempBar", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Temp.
+        /// </summary>
+        public static string CPUTempBarLabel {
+            get {
+                return ResourceManager.GetString("CPUTempBarLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to GPU Temp Bar.
+        /// </summary>
+        public static string GPUTempBar {
+            get {
+                return ResourceManager.GetString("GPUTempBar", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Temp.
+        /// </summary>
+        public static string GPUTempBarLabel {
+            get {
+                return ResourceManager.GetString("GPUTempBarLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to RAM.
         /// </summary>
         public static string RAM {

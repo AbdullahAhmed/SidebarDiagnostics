@@ -530,6 +530,12 @@ namespace SidebarDiagnostics.Monitoring
                         _loadBarMetric = null;
                     }
 
+                    if (_tempBarMetric != null)
+                    {
+                        _tempBarMetric.Dispose();
+                        _tempBarMetric = null;
+                    }
+
                     _hardware = null;
                 }
 
@@ -623,7 +629,9 @@ namespace SidebarDiagnostics.Monitoring
                 }
             }
 
-            if (metrics.IsEnabled(MetricKey.CPUTemp))
+            bool _cpuTempBarEnabled = metrics.IsEnabled(MetricKey.CPUTempBar);
+
+            if (metrics.IsEnabled(MetricKey.CPUTemp) || _cpuTempBarEnabled)
             {
                 ISensor _tempSensor = null;
 
@@ -643,7 +651,17 @@ namespace SidebarDiagnostics.Monitoring
 
                 if (_tempSensor != null)
                 {
-                    _sensorList.Add(new OHMMetric(_tempSensor, MetricKey.CPUTemp, DataType.Celcius, null, roundAll, tempAlert, (useFahrenheit ? CelciusToFahrenheit.Instance : null)));
+                    if (metrics.IsEnabled(MetricKey.CPUTemp))
+                    {
+                        _sensorList.Add(new OHMMetric(_tempSensor, MetricKey.CPUTemp, DataType.Celcius, null, roundAll, tempAlert, (useFahrenheit ? CelciusToFahrenheit.Instance : null)));
+                    }
+
+                    if (_cpuTempBarEnabled)
+                    {
+                        // Always Celsius (no converter) so value maps directly to 0-100°C scale
+                        _tempBarMetric = new OHMMetric(_tempSensor, MetricKey.CPUTempBar, DataType.Celcius, null, roundAll, tempAlert);
+                        ShowTempBar = true;
+                    }
                 }
             }
 
@@ -810,14 +828,25 @@ namespace SidebarDiagnostics.Monitoring
                 }
             }
 
-            if (metrics.IsEnabled(MetricKey.GPUCoreLoad))
+            bool _gpuLoadBarEnabled = metrics.IsEnabled(MetricKey.GPULoadBar);
+
+            if (metrics.IsEnabled(MetricKey.GPUCoreLoad) || _gpuLoadBarEnabled)
             {
                 ISensor _coreLoad = _hardware.Sensors.Where(s => s.SensorType == SensorType.Load && s.Name.Contains("Core")).FirstOrDefault() ??
                     _hardware.Sensors.Where(s => s.SensorType == SensorType.Load && s.Index == 0).FirstOrDefault();
 
                 if (_coreLoad != null)
                 {
-                    _sensorList.Add(new OHMMetric(_coreLoad, MetricKey.GPUCoreLoad, DataType.Percent, null, roundAll));
+                    if (metrics.IsEnabled(MetricKey.GPUCoreLoad))
+                    {
+                        _sensorList.Add(new OHMMetric(_coreLoad, MetricKey.GPUCoreLoad, DataType.Percent, null, roundAll));
+                    }
+
+                    if (_gpuLoadBarEnabled)
+                    {
+                        _loadBarMetric = new OHMMetric(_coreLoad, MetricKey.GPULoadBar, DataType.Percent, null, roundAll);
+                        ShowLoadBar = true;
+                    }
                 }
             }
 
@@ -852,13 +881,24 @@ namespace SidebarDiagnostics.Monitoring
                 }
             }
 
-            if (metrics.IsEnabled(MetricKey.GPUTemp))
+            bool _gpuTempBarEnabled = metrics.IsEnabled(MetricKey.GPUTempBar);
+
+            if (metrics.IsEnabled(MetricKey.GPUTemp) || _gpuTempBarEnabled)
             {
                 ISensor _tempSensor = _hardware.Sensors.Where(s => s.SensorType == SensorType.Temperature && s.Index == 0).FirstOrDefault();
 
                 if (_tempSensor != null)
                 {
-                    _sensorList.Add(new OHMMetric(_tempSensor, MetricKey.GPUTemp, DataType.Celcius, null, roundAll, tempAlert, (useFahrenheit ? CelciusToFahrenheit.Instance : null)));
+                    if (metrics.IsEnabled(MetricKey.GPUTemp))
+                    {
+                        _sensorList.Add(new OHMMetric(_tempSensor, MetricKey.GPUTemp, DataType.Celcius, null, roundAll, tempAlert, (useFahrenheit ? CelciusToFahrenheit.Instance : null)));
+                    }
+
+                    if (_gpuTempBarEnabled)
+                    {
+                        _tempBarMetric = new OHMMetric(_tempSensor, MetricKey.GPUTempBar, DataType.Celcius, null, roundAll, tempAlert);
+                        ShowTempBar = true;
+                    }
                 }
             }
 
@@ -882,6 +922,11 @@ namespace SidebarDiagnostics.Monitoring
             if (_loadBarMetric != null)
             {
                 _loadBarMetric.Update();
+            }
+
+            if (_tempBarMetric != null)
+            {
+                _tempBarMetric.Update();
             }
 
             base.Update();
@@ -910,6 +955,32 @@ namespace SidebarDiagnostics.Monitoring
             get
             {
                 return _loadBarMetric;
+            }
+        }
+
+        private bool _showTempBar { get; set; }
+
+        public bool ShowTempBar
+        {
+            get
+            {
+                return _showTempBar;
+            }
+            private set
+            {
+                _showTempBar = value;
+
+                NotifyPropertyChanged("ShowTempBar");
+            }
+        }
+
+        private OHMMetric _tempBarMetric { get; set; }
+
+        public iMetric TempBarMetric
+        {
+            get
+            {
+                return _tempBarMetric;
             }
         }
 
@@ -2280,7 +2351,7 @@ namespace SidebarDiagnostics.Monitoring
                         Enabled = true,
                         Order = 3,
                         Hardware = new HardwareConfig[0],
-                        Metrics = new MetricConfig[7]
+                        Metrics = new MetricConfig[10]
                         {
                             new MetricConfig(MetricKey.GPUCoreClock, true),
                             new MetricConfig(MetricKey.GPUVRAMClock, true),
@@ -2288,7 +2359,10 @@ namespace SidebarDiagnostics.Monitoring
                             new MetricConfig(MetricKey.GPUVRAMLoad, true),
                             new MetricConfig(MetricKey.GPUVoltage, true),
                             new MetricConfig(MetricKey.GPUTemp, true),
-                            new MetricConfig(MetricKey.GPUFan, true)
+                            new MetricConfig(MetricKey.GPUFan, true),
+                            new MetricConfig(MetricKey.GPULoadBar, false),
+                            new MetricConfig(MetricKey.GPUTempBar, false),
+                            new MetricConfig(MetricKey.CPUTempBar, false)
                         },
                         Params = new ConfigParam[5]
                         {
@@ -2576,7 +2650,11 @@ namespace SidebarDiagnostics.Monitoring
         CPULoadBar = 28,
         RAMLoadBar = 29,
         NetworkInLoadBar = 30,
-        NetworkOutLoadBar = 31
+        NetworkOutLoadBar = 31,
+
+        GPULoadBar = 32,
+        CPUTempBar = 33,
+        GPUTempBar = 34
     }
 
     [JsonObject(MemberSerialization.OptIn)]
@@ -3385,6 +3463,15 @@ namespace SidebarDiagnostics.Monitoring
                 case MetricKey.NetworkOutLoadBar:
                     return Resources.NetworkOutLoadBar;
 
+                case MetricKey.GPULoadBar:
+                    return Resources.GPULoadBar;
+
+                case MetricKey.CPUTempBar:
+                    return Resources.CPUTempBar;
+
+                case MetricKey.GPUTempBar:
+                    return Resources.GPUTempBar;
+
                 default:
                     return "Unknown";
             }
@@ -3489,6 +3576,15 @@ namespace SidebarDiagnostics.Monitoring
 
                 case MetricKey.NetworkOutLoadBar:
                     return Resources.NetworkOutLoadBarLabel;
+
+                case MetricKey.GPULoadBar:
+                    return Resources.GPULoadBarLabel;
+
+                case MetricKey.CPUTempBar:
+                    return Resources.CPUTempBarLabel;
+
+                case MetricKey.GPUTempBar:
+                    return Resources.GPUTempBarLabel;
 
                 default:
                     return "Unknown";
