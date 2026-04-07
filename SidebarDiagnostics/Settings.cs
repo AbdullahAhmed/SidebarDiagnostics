@@ -714,7 +714,7 @@ namespace SidebarDiagnostics.Framework
         {
             get
             {
-                return FontSize + 2;
+                return Math.Max(8, (int)Math.Round((FontSize + 2) * 0.75));
             }
         }
 
@@ -734,6 +734,14 @@ namespace SidebarDiagnostics.Framework
             }
         }
 
+        public int BarBadgeFontSize
+        {
+            get
+            {
+                return Math.Max(7, (int)Math.Round((FontSize - 2) * 0.75));
+            }
+        }
+
         public int IconSize
         {
             get
@@ -741,20 +749,20 @@ namespace SidebarDiagnostics.Framework
                 switch (FontSize)
                 {
                     case 10:
-                        return 18;
+                        return 14;
 
                     case 12:
-                        return 22;
+                        return 17;
 
                     case 14:
                     default:
-                        return 24;
+                        return 18;
 
                     case 16:
-                        return 28;
+                        return 21;
 
                     case 18:
-                        return 32;
+                        return 24;
                 }
             }
         }
@@ -763,7 +771,7 @@ namespace SidebarDiagnostics.Framework
         {
             get
             {
-                return FontSize - 3;
+                return Math.Max(6, (int)Math.Round((FontSize - 3) * 0.75));
             }
         }
 
@@ -771,7 +779,7 @@ namespace SidebarDiagnostics.Framework
         {
             get
             {
-                return FontSize + 6;
+                return Math.Max(10, (int)Math.Round((FontSize + 6) * 0.75));
             }
         }
 

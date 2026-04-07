@@ -323,7 +323,7 @@
                                     <Border Name="PART_Indicator" CornerRadius="2,0,0,2" Background="{TemplateBinding Foreground}" BorderBrush="{TemplateBinding Background}" BorderThickness="1" HorizontalAlignment="Left" />
                                 </Border>
                                 <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="#99000000" CornerRadius="2" Padding="4,1" Margin="0,2" IsHitTestVisible="False">
-                                    <TextBlock Text="{TemplateBinding Tag}" Foreground="White" FontFamily="Consolas" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.SmallFontSize, Mode=OneWay}" />
+                                    <TextBlock Text="{TemplateBinding Tag}" Foreground="White" FontFamily="Consolas" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.BarBadgeFontSize, Mode=OneWay}" />
                                 </Border>
                             </Grid>
                         </ControlTemplate>
@@ -348,7 +348,7 @@
                                     <Border Name="PART_Indicator" CornerRadius="2,0,0,2" Background="{TemplateBinding Foreground}" BorderBrush="{TemplateBinding Background}" BorderThickness="1" HorizontalAlignment="Left" />
                                 </Border>
                                 <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="#99000000" CornerRadius="2" Padding="6,1" Margin="0,2" IsHitTestVisible="False">
-                                    <TextBlock Foreground="White" FontFamily="Consolas" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.SmallFontSize, Mode=OneWay}">
+                                    <TextBlock Foreground="White" FontFamily="Consolas" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.BarBadgeFontSize, Mode=OneWay}">
                                         <Run Text="{Binding Label, Mode=OneWay}" /><Run Text=": " /><Run Text="{Binding Text, Mode=OneWay}" />
                                     </TextBlock>
                                 </Border>
@@ -380,7 +380,7 @@
                                     <Border Name="PART_Indicator" CornerRadius="2,0,0,2" Background="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Value, Converter={StaticResource TempColorConverter}}" BorderBrush="{TemplateBinding Background}" BorderThickness="1" HorizontalAlignment="Left" />
                                 </Border>
                                 <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="#99000000" CornerRadius="2" Padding="6,1" Margin="0,2" IsHitTestVisible="False">
-                                    <TextBlock Foreground="White" FontFamily="Consolas" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.SmallFontSize, Mode=OneWay}">
+                                    <TextBlock Foreground="White" FontFamily="Consolas" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.BarBadgeFontSize, Mode=OneWay}">
                                         <Run Text="{Binding Label, Mode=OneWay}" /><Run Text=": " /><Run Text="{Binding Text, Mode=OneWay}" />
                                     </TextBlock>
                                 </Border>
@@ -408,7 +408,7 @@
                                     <Border Name="PART_Indicator" CornerRadius="2,0,0,2" Background="{TemplateBinding Foreground}" BorderBrush="{TemplateBinding Background}" BorderThickness="1" HorizontalAlignment="Left" />
                                 </Border>
                                 <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="#99000000" CornerRadius="2" Padding="6,1" Margin="0,2" IsHitTestVisible="False">
-                                    <TextBlock Foreground="White" FontFamily="Consolas" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.SmallFontSize, Mode=OneWay}">
+                                    <TextBlock Foreground="White" FontFamily="Consolas" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.BarBadgeFontSize, Mode=OneWay}">
                                         <Run Text="{Binding UsedMetric.Text, Mode=OneWay}" /><Run Text=" / " /><Run Text="{Binding FreeMetric.Text, Mode=OneWay}" />
                                     </TextBlock>
                                 </Border>
