@@ -305,9 +305,34 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- Labeled load bar: fills width, shows "Label: Value" text inside with dark-badge contrast technique -->
-            <Style x:Key="LabeledProgress" TargetType="{x:Type ProgressBar}">
+            <!-- Process metric bar: fills based on Value (0-100), Tag property supplies the text shown inside the badge -->
+            <Style x:Key="ProcessMetricBar" TargetType="{x:Type ProgressBar}">
                 <Setter Property="Minimum" Value="0" />
+                <Setter Property="Maximum" Value="100" />
+                <Setter Property="Margin" Value="0,2" />
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="Height" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.BarHeightText, Mode=OneWay}" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="Foreground" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontColor, Mode=OneWay}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ProgressBar}">
+                            <Grid>
+                                <Border Name="PART_Track" CornerRadius="2" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding Foreground}" BorderThickness="1">
+                                    <Border Name="PART_Indicator" CornerRadius="2,0,0,2" Background="{TemplateBinding Foreground}" BorderBrush="{TemplateBinding Background}" BorderThickness="1" HorizontalAlignment="Left" />
+                                </Border>
+                                <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="#99000000" CornerRadius="2" Padding="4,1" Margin="0,2" IsHitTestVisible="False">
+                                    <TextBlock Text="{TemplateBinding Tag}" Foreground="White" FontFamily="Consolas" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.SmallFontSize, Mode=OneWay}" />
+                                </Border>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Labeled load bar: fills width, shows "Label: Value" text inside with dark-badge contrast technique -->
+            <Style x:Key="LabeledProgress" TargetType="{x:Type ProgressBar}">                <Setter Property="Minimum" Value="0" />
                 <Setter Property="Maximum" Value="100" />
                 <Setter Property="Margin" Value="0,4" />
                 <Setter Property="Width" Value="Auto" />

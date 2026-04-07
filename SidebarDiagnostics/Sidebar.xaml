@@ -376,6 +376,10 @@
                                                             </ItemsPanelTemplate>
                                                         </ItemsControl.ItemsPanel>
                                                     </ItemsControl>
+                                                    <!-- Combined Read/Write row -->
+                                                    <DockPanel Style="{StaticResource MetricPanel}" Visibility="{Binding HasIOMetrics, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                        <TextBlock Text="{Binding IOText, Mode=OneWay}" Style="{StaticResource MetricValue}" />
+                                                    </DockPanel>
                                                 </StackPanel>
                                             </DataTemplate>
                                             <DataTemplate DataType="{x:Type monitor:ProcessMonitor}">
@@ -383,19 +387,31 @@
                                                     <ItemsControl ItemsSource="{Binding Path=TopProcesses, Mode=OneWay}">
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate DataType="{x:Type monitor:ProcessEntry}">
-                                                                <StackPanel Margin="0,2,0,2">
-                                                                    <!-- Line 1: Full-width process name -->
-                                                                    <TextBlock Text="{Binding Name, Mode=OneWay}" Style="{StaticResource MetricLabel}" TextTrimming="CharacterEllipsis" />
-                                                                    <!-- Line 2: CPU | RAM | Kill button -->
+                                                                <StackPanel Margin="0,3,0,0">
+                                                                    <!-- Row 1: Process name + kill button -->
                                                                     <DockPanel>
                                                                         <Button DockPanel.Dock="Right" Command="{Binding KillCommand}" Style="{StaticResource KillButton}"
                                                                                 Visibility="{Binding ShowClose, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                                                        <TextBlock Text="{Binding RamText, Mode=OneWay}" DockPanel.Dock="Right" Style="{StaticResource MetricValue}"
-                                                                                   Visibility="{Binding ShowRam, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                                                        <TextBlock Text="{Binding CpuText, Mode=OneWay}" DockPanel.Dock="Right" Style="{StaticResource MetricValue}" Margin="0,0,4,0"
-                                                                                   Visibility="{Binding ShowCpu, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                                                        <TextBlock />
+                                                                        <TextBlock Text="{Binding Name, Mode=OneWay}" Style="{StaticResource MetricLabel}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                                                     </DockPanel>
+                                                                    <!-- Row 2: CPU bar (left half) + RAM bar (right half) -->
+                                                                    <Grid Margin="0,1,0,0">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*" />
+                                                                            <ColumnDefinition Width="3" />
+                                                                            <ColumnDefinition Width="*" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <ProgressBar Grid.Column="0"
+                                                                                     Value="{Binding CpuPercent, Mode=OneWay}"
+                                                                                     Tag="{Binding CpuText, Mode=OneWay}"
+                                                                                     Style="{StaticResource ProcessMetricBar}"
+                                                                                     Visibility="{Binding ShowCpu, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                                        <ProgressBar Grid.Column="2"
+                                                                                     Value="{Binding RamPercent, Mode=OneWay}"
+                                                                                     Tag="{Binding RamText, Mode=OneWay}"
+                                                                                     Style="{StaticResource ProcessMetricBar}"
+                                                                                     Visibility="{Binding ShowRam, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                                    </Grid>
                                                                 </StackPanel>
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>

@@ -1134,12 +1134,14 @@ namespace SidebarDiagnostics.Monitoring
 
             if (_readEnabled)
             {
-                _metrics.Add(new PCMetric(new PerformanceCounter(CATEGORYNAME, BYTESREADPERSECOND, id), MetricKey.DriveRead, DataType.kBps, null, roundAll, 0, BytesPerSecondConverter.Instance));
+                _readMetric = new PCMetric(new PerformanceCounter(CATEGORYNAME, BYTESREADPERSECOND, id), MetricKey.DriveRead, DataType.kBps, null, roundAll, 0, BytesPerSecondConverter.Instance);
+                _metrics.Add(_readMetric);
             }
 
             if (_writeEnabled)
             {
-                _metrics.Add(new PCMetric(new PerformanceCounter(CATEGORYNAME, BYTESWRITEPERSECOND, id), MetricKey.DriveWrite, DataType.kBps, null, roundAll, 0, BytesPerSecondConverter.Instance));
+                _writeMetric = new PCMetric(new PerformanceCounter(CATEGORYNAME, BYTESWRITEPERSECOND, id), MetricKey.DriveWrite, DataType.kBps, null, roundAll, 0, BytesPerSecondConverter.Instance);
+                _metrics.Add(_writeMetric);
             }
 
             Metrics = _metrics.ToArray();
@@ -1268,6 +1270,14 @@ namespace SidebarDiagnostics.Monitoring
             }
 
             base.Update();
+
+            if (_readMetric != null || _writeMetric != null)
+            {
+                var parts = new System.Collections.Generic.List<string>();
+                if (_readMetric != null) parts.Add("R: " + _readMetric.Text);
+                if (_writeMetric != null) parts.Add("W: " + _writeMetric.Text);
+                IOText = string.Join("  |  ", parts);
+            }
         }
 
         private State _status { get; set; }
@@ -1338,15 +1348,25 @@ namespace SidebarDiagnostics.Monitoring
         {
             get
             {
-                if (_loadEnabled)
-                {
-                    return Metrics;
-                }
-                else
-                {
-                    return Metrics.Where(m => m.Key != MetricKey.DriveLoad).ToArray();
-                }
+                return Metrics.Where(m =>
+                    (m.Key != MetricKey.DriveLoad || _loadEnabled) &&
+                    m.Key != MetricKey.DriveRead &&
+                    m.Key != MetricKey.DriveWrite
+                ).ToArray();
             }
+        }
+
+        private iMetric _readMetric { get; set; }
+
+        private iMetric _writeMetric { get; set; }
+
+        public bool HasIOMetrics => _readMetric != null || _writeMetric != null;
+
+        private string _ioText;
+        public string IOText
+        {
+            get { return _ioText; }
+            private set { _ioText = value; NotifyPropertyChanged("IOText"); }
         }
 
         private PerformanceCounter _counterFreeMB { get; set; }
@@ -3932,7 +3952,7 @@ namespace SidebarDiagnostics.Monitoring
 
     public class ProcessEntry : INotifyPropertyChanged
     {
-        public ProcessEntry(int pid, string name, string cpuText, string ramText, RelayCommand killCommand, bool showCpu, bool showRam, bool showClose)
+        public ProcessEntry(int pid, string name, string cpuText, string ramText, RelayCommand killCommand, bool showCpu, bool showRam, bool showClose, double cpuPercent, double ramPercent)
         {
             Pid = pid;
             Name = name;
@@ -3942,6 +3962,8 @@ namespace SidebarDiagnostics.Monitoring
             ShowCpu = showCpu;
             ShowRam = showRam;
             ShowClose = showClose;
+            CpuPercent = cpuPercent;
+            RamPercent = ramPercent;
         }
 
         public void NotifyPropertyChanged(string propertyName)
@@ -3979,10 +4001,48 @@ namespace SidebarDiagnostics.Monitoring
         public bool ShowCpu { get; }
         public bool ShowRam { get; }
         public bool ShowClose { get; }
+
+        private double _cpuPercent;
+        public double CpuPercent
+        {
+            get { return _cpuPercent; }
+            set { _cpuPercent = value; NotifyPropertyChanged("CpuPercent"); }
+        }
+
+        private double _ramPercent;
+        public double RamPercent
+        {
+            get { return _ramPercent; }
+            set { _ramPercent = value; NotifyPropertyChanged("RamPercent"); }
+        }
     }
 
     public class ProcessMonitor : BaseMonitor
     {
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct MEMORYSTATUSEX
+        {
+            public uint dwLength;
+            public uint dwMemoryLoad;
+            public ulong ullTotalPhys;
+            public ulong ullAvailPhys;
+            public ulong ullTotalPageFile;
+            public ulong ullAvailPageFile;
+            public ulong ullTotalVirtual;
+            public ulong ullAvailVirtual;
+            public ulong ullAvailExtendedVirtual;
+        }
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
+
+        private static readonly double _totalRamMb = GetTotalRamMb();
+        private static double GetTotalRamMb()
+        {
+            var status = new MEMORYSTATUSEX { dwLength = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(MEMORYSTATUSEX)) };
+            return GlobalMemoryStatusEx(ref status) ? status.ullTotalPhys / 1048576.0 : 8192.0;
+        }
+
         private struct ProcessSnapshot
         {
             public TimeSpan CpuTime;
@@ -4070,10 +4130,12 @@ namespace SidebarDiagnostics.Monitoring
                     ? string.Format("{0:0.0} GB", info.RamMb / 1024.0)
                     : string.Format("{0:0} MB", info.RamMb);
                 int capturedPid = info.Pid;
+                double ramPercent = Math.Min(100.0, _totalRamMb > 0 ? info.RamMb / _totalRamMb * 100.0 : 0);
                 TopProcesses.Add(new ProcessEntry(
                     info.Pid, info.Name, cpuText, ramText,
                     new RelayCommand(() => KillProcess(capturedPid)),
-                    _showCpu, _showRam, _showClose
+                    _showCpu, _showRam, _showClose,
+                    info.Cpu, ramPercent
                 ));
             }
         }
