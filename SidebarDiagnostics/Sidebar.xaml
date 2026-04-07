@@ -378,7 +378,7 @@
                                                     </ItemsControl>
                                                     <!-- Combined Read/Write row -->
                                                     <DockPanel Style="{StaticResource MetricPanel}" Visibility="{Binding HasIOMetrics, Converter={StaticResource BoolToVisibilityConverter}}">
-                                                        <TextBlock Text="{Binding IOText, Mode=OneWay}" Style="{StaticResource MetricValue}" />
+                                                        <TextBlock Text="{Binding IOText, Mode=OneWay}" Style="{StaticResource MetricValue}" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.XSmallFontSize, Mode=OneWay}" />
                                                     </DockPanel>
                                                 </StackPanel>
                                             </DataTemplate>

@@ -726,6 +726,14 @@ namespace SidebarDiagnostics.Framework
             }
         }
 
+        public int XSmallFontSize
+        {
+            get
+            {
+                return Math.Max(8, FontSize - 4);
+            }
+        }
+
         public int IconSize
         {
             get
