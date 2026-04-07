@@ -2111,7 +2111,47 @@ namespace SidebarDiagnostics.Framework {
                 return ResourceManager.GetString("SettingsUseGHzTooltip", resourceCulture);
             }
         }
-        
+
+        public static string SettingsProcessCount {
+            get { return ResourceManager.GetString("SettingsProcessCount", resourceCulture); }
+        }
+
+        public static string SettingsProcessCountTooltip {
+            get { return ResourceManager.GetString("SettingsProcessCountTooltip", resourceCulture); }
+        }
+
+        public static string SettingsProcessSortByCpu {
+            get { return ResourceManager.GetString("SettingsProcessSortByCpu", resourceCulture); }
+        }
+
+        public static string SettingsProcessSortByCpuTooltip {
+            get { return ResourceManager.GetString("SettingsProcessSortByCpuTooltip", resourceCulture); }
+        }
+
+        public static string SettingsProcessShowCpu {
+            get { return ResourceManager.GetString("SettingsProcessShowCpu", resourceCulture); }
+        }
+
+        public static string SettingsProcessShowCpuTooltip {
+            get { return ResourceManager.GetString("SettingsProcessShowCpuTooltip", resourceCulture); }
+        }
+
+        public static string SettingsProcessShowRam {
+            get { return ResourceManager.GetString("SettingsProcessShowRam", resourceCulture); }
+        }
+
+        public static string SettingsProcessShowRamTooltip {
+            get { return ResourceManager.GetString("SettingsProcessShowRamTooltip", resourceCulture); }
+        }
+
+        public static string SettingsProcessShowClose {
+            get { return ResourceManager.GetString("SettingsProcessShowClose", resourceCulture); }
+        }
+
+        public static string SettingsProcessShowCloseTooltip {
+            get { return ResourceManager.GetString("SettingsProcessShowCloseTooltip", resourceCulture); }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Vertical Offset.
         /// </summary>
