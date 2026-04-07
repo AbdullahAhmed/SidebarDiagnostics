@@ -392,7 +392,7 @@
                                                                     <DockPanel>
                                                                         <Button DockPanel.Dock="Right" Command="{Binding KillCommand}" Style="{StaticResource KillButton}"
                                                                                 Visibility="{Binding ShowClose, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                                                        <TextBlock Text="{Binding Name, Mode=OneWay}" Style="{StaticResource MetricLabel}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                                        <TextBlock Text="{Binding Name, Mode=OneWay}" Style="{StaticResource MetricLabel}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontSize="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.XSmallFontSize, Mode=OneWay}" />
                                                                     </DockPanel>
                                                                     <!-- Row 2: CPU bar (left half) + RAM bar (right half) -->
                                                                     <Grid Margin="0,1,0,0">
