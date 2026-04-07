@@ -112,7 +112,6 @@
                 <Setter Property="VerticalAlignment" Value="Top" />
                 <Setter Property="Orientation" Value="Horizontal" />
                 <Setter Property="Visibility" Value="Hidden" />
-                <Setter Property="DockPanel.Dock" Value="Top" />
             </Style>
 
             <Style x:Key="IconButton" TargetType="{x:Type Button}">
