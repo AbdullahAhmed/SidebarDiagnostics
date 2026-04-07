@@ -217,11 +217,14 @@ namespace SidebarDiagnostics.Monitoring
         {
             int count = parameters.GetValue<int>(ParamKey.ProcessCount);
             bool sortByCpu = parameters.GetValue<bool>(ParamKey.ProcessSortByCpu);
+            bool showCpu = parameters.GetValue<bool>(ParamKey.ProcessShowCpu);
+            bool showRam = parameters.GetValue<bool>(ParamKey.ProcessShowRam);
+            bool showClose = parameters.GetValue<bool>(ParamKey.ProcessShowClose);
 
             return new MonitorPanel(
                 type.GetDescription(),
                 "M 19,28L 57,28L 57,50L 19,50L 19,28 Z M 21,30L 21,48L 55,48L 55,30L 21,30 Z M 23,32L 35,32L 35,34L 23,34L 23,32 Z M 23,36L 45,36L 45,38L 23,38L 23,36 Z M 23,40L 40,40L 40,42L 23,42L 23,40 Z M 23,44L 35,44L 35,46L 23,46L 23,44 Z M 47,32L 53,32L 53,46L 47,46L 47,32 Z M 49,34L 51,34L 51,44L 49,44L 49,34 Z",
-                new ProcessMonitor(count, sortByCpu)
+                new ProcessMonitor(count, sortByCpu, showCpu, showRam, showClose)
                 );
         }
 
@@ -2551,10 +2554,13 @@ namespace SidebarDiagnostics.Monitoring
                         Order = 0,
                         Hardware = new HardwareConfig[0],
                         Metrics = new MetricConfig[0],
-                        Params = new ConfigParam[2]
+                        Params = new ConfigParam[5]
                         {
                             ConfigParam.Defaults.ProcessCount,
-                            ConfigParam.Defaults.ProcessSortByCpu
+                            ConfigParam.Defaults.ProcessSortByCpu,
+                            ConfigParam.Defaults.ProcessShowCpu,
+                            ConfigParam.Defaults.ProcessShowRam,
+                            ConfigParam.Defaults.ProcessShowClose
                         }
                     }
                 };
@@ -2926,6 +2932,21 @@ namespace SidebarDiagnostics.Monitoring
                     case ParamKey.UseGHz:
                         return Resources.SettingsUseGHz;
 
+                    case ParamKey.ProcessCount:
+                        return Resources.SettingsProcessCount;
+
+                    case ParamKey.ProcessSortByCpu:
+                        return Resources.SettingsProcessSortByCpu;
+
+                    case ParamKey.ProcessShowCpu:
+                        return Resources.SettingsProcessShowCpu;
+
+                    case ParamKey.ProcessShowRam:
+                        return Resources.SettingsProcessShowRam;
+
+                    case ParamKey.ProcessShowClose:
+                        return Resources.SettingsProcessShowClose;
+
                     default:
                         return "Unknown";
                 }
@@ -2979,6 +3000,21 @@ namespace SidebarDiagnostics.Monitoring
 
                     case ParamKey.UseGHz:
                         return Resources.SettingsUseGHzTooltip;
+
+                    case ParamKey.ProcessCount:
+                        return Resources.SettingsProcessCountTooltip;
+
+                    case ParamKey.ProcessSortByCpu:
+                        return Resources.SettingsProcessSortByCpuTooltip;
+
+                    case ParamKey.ProcessShowCpu:
+                        return Resources.SettingsProcessShowCpuTooltip;
+
+                    case ParamKey.ProcessShowRam:
+                        return Resources.SettingsProcessShowRamTooltip;
+
+                    case ParamKey.ProcessShowClose:
+                        return Resources.SettingsProcessShowCloseTooltip;
 
                     default:
                         return "Unknown";
@@ -3123,6 +3159,30 @@ namespace SidebarDiagnostics.Monitoring
                     return new ConfigParam() { Key = ParamKey.ProcessSortByCpu, Value = true };
                 }
             }
+
+            public static ConfigParam ProcessShowCpu
+            {
+                get
+                {
+                    return new ConfigParam() { Key = ParamKey.ProcessShowCpu, Value = true };
+                }
+            }
+
+            public static ConfigParam ProcessShowRam
+            {
+                get
+                {
+                    return new ConfigParam() { Key = ParamKey.ProcessShowRam, Value = true };
+                }
+            }
+
+            public static ConfigParam ProcessShowClose
+            {
+                get
+                {
+                    return new ConfigParam() { Key = ParamKey.ProcessShowClose, Value = true };
+                }
+            }
         }
     }
 
@@ -3144,7 +3204,10 @@ namespace SidebarDiagnostics.Monitoring
         DriveIO,
         UseGHz,
         ProcessCount,
-        ProcessSortByCpu
+        ProcessSortByCpu,
+        ProcessShowCpu,
+        ProcessShowRam,
+        ProcessShowClose
     }
 
     public enum DataType : byte
@@ -3869,13 +3932,16 @@ namespace SidebarDiagnostics.Monitoring
 
     public class ProcessEntry : INotifyPropertyChanged
     {
-        public ProcessEntry(int pid, string name, string cpuText, string ramText, RelayCommand killCommand)
+        public ProcessEntry(int pid, string name, string cpuText, string ramText, RelayCommand killCommand, bool showCpu, bool showRam, bool showClose)
         {
             Pid = pid;
             Name = name;
             CpuText = cpuText;
             RamText = ramText;
             KillCommand = killCommand;
+            ShowCpu = showCpu;
+            ShowRam = showRam;
+            ShowClose = showClose;
         }
 
         public void NotifyPropertyChanged(string propertyName)
@@ -3909,6 +3975,10 @@ namespace SidebarDiagnostics.Monitoring
         }
 
         public RelayCommand KillCommand { get; }
+
+        public bool ShowCpu { get; }
+        public bool ShowRam { get; }
+        public bool ShowClose { get; }
     }
 
     public class ProcessMonitor : BaseMonitor
@@ -3929,13 +3999,19 @@ namespace SidebarDiagnostics.Monitoring
 
         private readonly int _count;
         private readonly bool _sortByCpu;
+        private readonly bool _showCpu;
+        private readonly bool _showRam;
+        private readonly bool _showClose;
         private readonly int _processorCount;
         private Dictionary<int, ProcessSnapshot> _prevData = new Dictionary<int, ProcessSnapshot>();
 
-        public ProcessMonitor(int count, bool sortByCpu) : base("process", "Processes", false)
+        public ProcessMonitor(int count, bool sortByCpu, bool showCpu, bool showRam, bool showClose) : base("process", "Processes", false)
         {
             _count = count;
             _sortByCpu = sortByCpu;
+            _showCpu = showCpu;
+            _showRam = showRam;
+            _showClose = showClose;
             _processorCount = Math.Max(1, Environment.ProcessorCount);
             Metrics = new iMetric[0];
             TopProcesses = new ObservableCollection<ProcessEntry>();
@@ -3996,7 +4072,8 @@ namespace SidebarDiagnostics.Monitoring
                 int capturedPid = info.Pid;
                 TopProcesses.Add(new ProcessEntry(
                     info.Pid, info.Name, cpuText, ramText,
-                    new RelayCommand(() => KillProcess(capturedPid))
+                    new RelayCommand(() => KillProcess(capturedPid)),
+                    _showCpu, _showRam, _showClose
                 ));
             }
         }

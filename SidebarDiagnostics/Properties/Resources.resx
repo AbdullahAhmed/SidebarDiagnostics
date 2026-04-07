@@ -1100,6 +1100,46 @@
     <value>Processes</value>
     <comment>Process monitor section title</comment>
   </data>
+  <data name="SettingsProcessCount" xml:space="preserve">
+    <value>Process Count</value>
+    <comment>Settings process count label</comment>
+  </data>
+  <data name="SettingsProcessCountTooltip" xml:space="preserve">
+    <value>Number of top processes to display.</value>
+    <comment>Settings process count tooltip</comment>
+  </data>
+  <data name="SettingsProcessSortByCpu" xml:space="preserve">
+    <value>Sort by CPU</value>
+    <comment>Settings sort processes by CPU label</comment>
+  </data>
+  <data name="SettingsProcessSortByCpuTooltip" xml:space="preserve">
+    <value>When checked, processes are sorted by CPU usage. When unchecked, sorted by RAM usage.</value>
+    <comment>Settings sort processes by CPU tooltip</comment>
+  </data>
+  <data name="SettingsProcessShowCpu" xml:space="preserve">
+    <value>Show CPU</value>
+    <comment>Settings show process CPU column label</comment>
+  </data>
+  <data name="SettingsProcessShowCpuTooltip" xml:space="preserve">
+    <value>Shows the CPU usage column for each process.</value>
+    <comment>Settings show process CPU column tooltip</comment>
+  </data>
+  <data name="SettingsProcessShowRam" xml:space="preserve">
+    <value>Show RAM</value>
+    <comment>Settings show process RAM column label</comment>
+  </data>
+  <data name="SettingsProcessShowRamTooltip" xml:space="preserve">
+    <value>Shows the RAM usage column for each process.</value>
+    <comment>Settings show process RAM column tooltip</comment>
+  </data>
+  <data name="SettingsProcessShowClose" xml:space="preserve">
+    <value>Show Close Button</value>
+    <comment>Settings show process close button label</comment>
+  </data>
+  <data name="SettingsProcessShowCloseTooltip" xml:space="preserve">
+    <value>Shows the kill process button next to each process.</value>
+    <comment>Settings show process close button tooltip</comment>
+  </data>
   <data name="SettingsShowMachineName" xml:space="preserve">
     <value>Show PC Name</value>
     <comment>Settings show machine name label</comment>

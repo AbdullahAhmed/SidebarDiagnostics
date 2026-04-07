@@ -40,6 +40,7 @@
             <conv:MetricLabelConverter x:Key="MetricLabelConverter" />
             <conv:FontToSpaceConverter x:Key="FontToSpaceConverter" />
             <conv:BoolInverseConverter x:Key="BoolInverseConverter" />
+            <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <conv:PercentConverter x:Key="PercentConverter" />
             <conv:TempColorConverter x:Key="TempColorConverter" />
 
