@@ -99,7 +99,7 @@ namespace SidebarDiagnostics.Models
         private void InitMonitors()
         {
             MonitorManager = new MonitorManager(Framework.Settings.Instance.MonitorConfig);
-            MonitorManager.Update();
+            _monitorsPrimed = false;
         }
 
         private void StartClock()
@@ -121,6 +121,8 @@ namespace SidebarDiagnostics.Models
             _monitorTimer.Interval = TimeSpan.FromMilliseconds(Framework.Settings.Instance.PollingInterval);
             _monitorTimer.Tick += new EventHandler(MonitorTimer_Tick);
             _monitorTimer.Start();
+
+            QueueInitialMonitorUpdate();
         }
 
         private void UpdateClock()
@@ -137,7 +139,21 @@ namespace SidebarDiagnostics.Models
 
         private void UpdateMonitors()
         {
-            MonitorManager.Update();
+            if (MonitorManager != null)
+            {
+                MonitorManager.Update();
+            }
+        }
+
+        private void QueueInitialMonitorUpdate()
+        {
+            if (_monitorsPrimed || MonitorManager == null)
+            {
+                return;
+            }
+
+            _monitorsPrimed = true;
+            Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(UpdateMonitors));
         }
 
         private void PauseClock()
@@ -207,6 +223,8 @@ namespace SidebarDiagnostics.Models
         }
 
         private bool _ready { get; set; } = false;
+
+        private bool _monitorsPrimed { get; set; }
 
         public bool Ready
         {

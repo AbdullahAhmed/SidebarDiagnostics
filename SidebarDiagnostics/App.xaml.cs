@@ -21,7 +21,7 @@ namespace SidebarDiagnostics
     /// </summary>
     public partial class App : Application
     {
-        protected async override void OnStartup(StartupEventArgs e)
+        protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
@@ -33,14 +33,6 @@ namespace SidebarDiagnostics
             // LANGUAGE
             Culture.SetDefault();
             Culture.SetCurrent(true);
-
-            // UPDATE
-            #if !DEBUG
-            if (Framework.Settings.Instance.AutoUpdate)
-            {
-                await AppUpdate(false);
-            }
-            #endif
 
             // SETTINGS
             CheckSettings();
@@ -62,7 +54,24 @@ namespace SidebarDiagnostics
             else
             {
                 StartApp(false);
+
+                #if !DEBUG
+                BeginAutoUpdateCheck();
+                #endif
             }
+        }
+
+        private void BeginAutoUpdateCheck()
+        {
+            Dispatcher.BeginInvoke(new Action(async () =>
+            {
+                if (!Framework.Settings.Instance.AutoUpdate)
+                {
+                    return;
+                }
+
+                await AppUpdate(false);
+            }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
 
         protected override void OnExit(ExitEventArgs e)

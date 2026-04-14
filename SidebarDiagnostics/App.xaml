@@ -177,6 +177,117 @@
                 </Setter>
             </Style>
 
+            <Style x:Key="EndTreeButton" TargetType="{x:Type Button}" BasedOn="{StaticResource KillButton}">
+                <Setter Property="Content" Value="✕" />
+                <Setter Property="Padding" Value="2,0" />
+                <Setter Property="Margin" Value="4,0,0,0" />
+                <Setter Property="MinWidth" Value="0" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding CanEndTree, Mode=OneWay}" Value="False">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ProcessToggleButton" TargetType="{x:Type Button}">
+                <Setter Property="Foreground" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontColor, Mode=OneWay}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+                <Setter Property="Width" Value="10" />
+                <Setter Property="Height" Value="10" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="FontSize" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.SmallFontSize, Mode=OneWay}" />
+                <Setter Property="Opacity" Value="0.8" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Button}">
+                            <Border Background="{TemplateBinding Background}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Opacity" Value="0.8" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ProcessGroupPanel" TargetType="{x:Type StackPanel}">
+                <Setter Property="Orientation" Value="Vertical" />
+                <Setter Property="Margin" Value="0,0,0,4" />
+            </Style>
+
+            <Style x:Key="ProcessHeaderText" TargetType="{x:Type TextBlock}">
+                <Setter Property="Foreground" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontColor, Mode=OneWay}" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="TextWrapping" Value="NoWrap" />
+                <Setter Property="FontFamily" Value="Consolas" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style x:Key="ProcessCountText" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource ProcessHeaderText}">
+                <Setter Property="Opacity" Value="0.7" />
+                <Setter Property="Margin" Value="4,0,0,0" />
+                <Setter Property="FontWeight" Value="Normal" />
+            </Style>
+
+            <Style x:Key="ProcessUsageText" TargetType="{x:Type TextBlock}">
+                <Setter Property="Foreground" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontColor, Mode=OneWay}" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="8,0,0,0" />
+                <Setter Property="TextWrapping" Value="NoWrap" />
+                <Setter Property="FontFamily" Value="Consolas" />
+                <Setter Property="FontSize" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.SmallFontSize, Mode=OneWay}" />
+                <Setter Property="TextAlignment" Value="Right" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="MinWidth" Value="54" />
+            </Style>
+
+            <Style x:Key="ProcessChildText" TargetType="{x:Type TextBlock}">
+                <Setter Property="Foreground" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontColor, Mode=OneWay}" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="TextWrapping" Value="NoWrap" />
+                <Setter Property="FontFamily" Value="Consolas" />
+                <Setter Property="FontSize" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.SmallFontSize, Mode=OneWay}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style x:Key="ProcessUsageBarBase" TargetType="{x:Type ProgressBar}">
+                <Setter Property="Minimum" Value="0" />
+                <Setter Property="Maximum" Value="100" />
+                <Setter Property="Height" Value="5" />
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Background" Value="#55101010" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ProgressBar}">
+                            <Border Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="1">
+                                <Border Name="PART_Indicator" Background="{TemplateBinding Foreground}" CornerRadius="1" HorizontalAlignment="Left" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ProcessCpuBar" TargetType="{x:Type ProgressBar}" BasedOn="{StaticResource ProcessUsageBarBase}">
+                <Setter Property="Foreground" Value="#FFEF574F" />
+            </Style>
+
+            <Style x:Key="ProcessMemoryBar" TargetType="{x:Type ProgressBar}" BasedOn="{StaticResource ProcessUsageBarBase}">
+                <Setter Property="Foreground" Value="#FF36F34A" />
+            </Style>
+
             <Style x:Key="AppIcon" TargetType="{x:Type Path}">
                 <Setter Property="Width" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.IconSize, Mode=OneWay}" />
                 <Setter Property="Height" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.IconSize, Mode=OneWay}" />
@@ -273,6 +384,43 @@
                 </Style.Triggers>
             </Style>
             
+            <Style x:Key="ProcessToolTip" TargetType="{x:Type ToolTip}">
+                <Setter Property="Background" Value="#F0141A1F" />
+                <Setter Property="BorderBrush" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontColor, Mode=OneWay}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="10" />
+                <Setter Property="HasDropShadow" Value="False" />
+                <Setter Property="MaxWidth" Value="320" />
+            </Style>
+
+            <Style x:Key="ProcessToolTipHeader" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource DataText}">
+                <Setter Property="FontSize" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.TitleFontSize, Mode=OneWay}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="ProcessToolTipSubHeader" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource DataText}">
+                <Setter Property="Opacity" Value="0.8" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="ProcessToolTipLabel" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource DataText}">
+                <Setter Property="Opacity" Value="0.75" />
+                <Setter Property="Margin" Value="0,0,8,4" />
+            </Style>
+
+            <Style x:Key="ProcessToolTipValue" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource DataText}">
+                <Setter Property="Margin" Value="0,0,0,4" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="ProcessToolTipFooter" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource DataText}">
+                <Setter Property="Opacity" Value="0.7" />
+                <Setter Property="Margin" Value="0,8,0,0" />
+                <Setter Property="FontSize" Value="{Binding Source={x:Static frame:Settings.Instance}, Path=FontSetting.SmallFontSize, Mode=OneWay}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
             <Style x:Key="DriveProgress" TargetType="{x:Type ProgressBar}">
                 <Setter Property="Minimum" Value="0" />
                 <Setter Property="Maximum" Value="100" />
@@ -787,7 +935,7 @@
             </Style>
 
             <Style x:Key="ContentView" TargetType="ScrollViewer">
-                <Setter Property="Margin" Value="5,15" />
+                <Setter Property="Margin" Value="5,24,5,15" />
                 <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
                 <Setter Property="VerticalScrollBarVisibility" Value="Hidden" />
                 <Style.Triggers>

@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 using SidebarDiagnostics.Windows;
@@ -228,6 +229,18 @@ namespace SidebarDiagnostics
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
             App.Current.Shutdown();
+        }
+
+        private async void ProcessToolTip_Opened(object sender, ToolTipEventArgs e)
+        {
+            FrameworkElement element = sender as FrameworkElement;
+            Monitoring.ProcessEntry entry = element == null ? null : element.DataContext as Monitoring.ProcessEntry;
+            if (entry == null)
+            {
+                return;
+            }
+
+            await entry.RefreshToolTipAsync();
         }
         
         private void Window_MouseEnter(object sender, MouseEventArgs e)

@@ -9,7 +9,10 @@ using System.Net;
 using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Management;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Windows.Threading;
 using System.Windows.Media;
 using LibreHardwareMonitor.Hardware;
@@ -1140,6 +1143,7 @@ namespace SidebarDiagnostics.Monitoring
             }
 
             Metrics = _metrics.ToArray();
+            _driveMetrics = _loadEnabled ? Metrics : Metrics.Where(m => m.Key != MetricKey.DriveLoad).ToArray();
         }
 
         public new void Dispose()
@@ -1233,38 +1237,53 @@ namespace SidebarDiagnostics.Monitoring
 
         public override void Update()
         {
-            if (!PerformanceCounterCategory.InstanceExists(ID, CATEGORYNAME))
+            if (!_countersAvailable)
             {
                 return;
             }
 
-            if (_counterFreeMB != null && _counterFreePercent != null)
+            try
             {
-                double _freeGB = _counterFreeMB.NextValue() / 1024d;
-                double _freePercent = _counterFreePercent.NextValue();
-
-                double _usedPercent = 100d - _freePercent;
-
-                double _totalGB = _freeGB / (_freePercent / 100d);
-                double _usedGB = _totalGB - _freeGB;
-
-                if (LoadMetric != null)
+                if (_counterFreeMB != null && _counterFreePercent != null)
                 {
-                    LoadMetric.Update(_usedPercent);
+                    double _freeGB = _counterFreeMB.NextValue() / 1024d;
+                    double _freePercent = _counterFreePercent.NextValue();
+
+                    double _usedPercent = 100d - _freePercent;
+
+                    double _totalGB = _freeGB / (_freePercent / 100d);
+                    double _usedGB = _totalGB - _freeGB;
+
+                    if (LoadMetric != null)
+                    {
+                        LoadMetric.Update(_usedPercent);
+                    }
+
+                    if (UsedMetric != null)
+                    {
+                        UsedMetric.Update(_usedGB);
+                    }
+
+                    if (FreeMetric != null)
+                    {
+                        FreeMetric.Update(_freeGB);
+                    }
                 }
 
-                if (UsedMetric != null)
-                {
-                    UsedMetric.Update(_usedGB);
-                }
-
-                if (FreeMetric != null)
-                {
-                    FreeMetric.Update(_freeGB);
-                }
+                base.Update();
             }
-
-            base.Update();
+            catch (InvalidOperationException)
+            {
+                _countersAvailable = false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                _countersAvailable = false;
+            }
+            catch (Win32Exception)
+            {
+                _countersAvailable = false;
+            }
         }
 
         private State _status { get; set; }
@@ -1335,14 +1354,7 @@ namespace SidebarDiagnostics.Monitoring
         {
             get
             {
-                if (_loadEnabled)
-                {
-                    return Metrics;
-                }
-                else
-                {
-                    return Metrics.Where(m => m.Key != MetricKey.DriveLoad).ToArray();
-                }
+                return _driveMetrics;
             }
         }
 
@@ -1351,6 +1363,10 @@ namespace SidebarDiagnostics.Monitoring
         private PerformanceCounter _counterFreePercent { get; set; }
 
         private bool _loadEnabled { get; set; }
+
+        private iMetric[] _driveMetrics { get; set; }
+
+        private bool _countersAvailable { get; set; } = true;
 
         private bool _disposed { get; set; } = false;
 
@@ -1369,7 +1385,7 @@ namespace SidebarDiagnostics.Monitoring
         private const string BYTESRECEIVEDPERSECOND = "Bytes Received/sec";
         private const string BYTESSENTPERSECOND = "Bytes Sent/sec";
 
-        public NetworkMonitor(string id, string name, string extIP, MetricConfig[] metrics, bool showName = true, bool roundAll = false, bool useBytes = false, double bandwidthInAlert = 0, double bandwidthOutAlert = 0) : base(id, name, showName)
+        public NetworkMonitor(string id, string name, IDictionary<string, string> adapterIpLookup, bool includeExtIP, MetricConfig[] metrics, bool showName = true, bool roundAll = false, bool useBytes = false, double bandwidthInAlert = 0, double bandwidthOutAlert = 0) : base(id, name, showName)
         {
             iConverter _converter;
 
@@ -1386,7 +1402,7 @@ namespace SidebarDiagnostics.Monitoring
 
             if (metrics.IsEnabled(MetricKey.NetworkIP))
             {
-                string _ipAddress = GetAdapterIPAddress(name);
+                string _ipAddress = GetAdapterIPAddress(name, adapterIpLookup);
 
                 if (!string.IsNullOrEmpty(_ipAddress))
                 {
@@ -1394,9 +1410,10 @@ namespace SidebarDiagnostics.Monitoring
                 }
             }
 
-            if (!string.IsNullOrEmpty(extIP))
+            if (includeExtIP)
             {
-                _metrics.Add(new IPMetric(extIP, MetricKey.NetworkExtIP, DataType.IP));
+                _externalIPMetric = new IPMetric("Loading...", MetricKey.NetworkExtIP, DataType.IP);
+                _metrics.Add(_externalIPMetric);
             }
 
             if (metrics.IsEnabled(MetricKey.NetworkIn))
@@ -1457,78 +1474,121 @@ namespace SidebarDiagnostics.Monitoring
             int _bandwidthInAlert = parameters.GetValue<int>(ParamKey.BandwidthInAlert);
             int _bandwidthOutAlert = parameters.GetValue<int>(ParamKey.BandwidthOutAlert);
 
-            string _extIP = null;
+            bool _includeExtIP = metrics.IsEnabled(MetricKey.NetworkExtIP);
+            IDictionary<string, string> _adapterIpLookup = metrics.IsEnabled(MetricKey.NetworkIP)
+                ? BuildAdapterIPAddressLookup()
+                : null;
 
-            if (metrics.IsEnabled(MetricKey.NetworkExtIP))
-            {
-                _extIP = GetExternalIPAddress();
-            }
-
-            return (
+            NetworkMonitor[] monitors = (
                 from hw in GetHardware()
                 join c in hardwareConfig on hw.ID equals c.ID into merged
                 from n in merged.DefaultIfEmpty(hw).Select(n => { n.ActualName = hw.Name; return n; })
                 where n.Enabled
                 orderby n.Order descending, n.Name ascending
-                select new NetworkMonitor(n.ID, n.Name ?? n.ActualName, _extIP, metrics, _showName, _roundAll, _useBytes, _bandwidthInAlert, _bandwidthOutAlert)
+                select new NetworkMonitor(n.ID, n.Name ?? n.ActualName, _adapterIpLookup, _includeExtIP, metrics, _showName, _roundAll, _useBytes, _bandwidthInAlert, _bandwidthOutAlert)
                 ).ToArray();
+
+            if (_includeExtIP)
+            {
+                RefreshExternalIPAddressAsync(monitors);
+            }
+
+            return monitors;
         }
 
         public override void Update()
         {
-            if (!PerformanceCounterCategory.InstanceExists(ID, CATEGORYNAME))
+            if (!_countersAvailable)
             {
                 return;
             }
 
-            if (_loadBarInMetric != null)
+            try
             {
-                _loadBarInMetric.Update();
-            }
+                if (_loadBarInMetric != null)
+                {
+                    _loadBarInMetric.Update();
+                }
 
-            if (_loadBarOutMetric != null)
+                if (_loadBarOutMetric != null)
+                {
+                    _loadBarOutMetric.Update();
+                }
+
+                base.Update();
+            }
+            catch (InvalidOperationException)
             {
-                _loadBarOutMetric.Update();
+                _countersAvailable = false;
             }
-
-            base.Update();
+            catch (UnauthorizedAccessException)
+            {
+                _countersAvailable = false;
+            }
+            catch (Win32Exception)
+            {
+                _countersAvailable = false;
+            }
         }
 
-        private static string GetAdapterIPAddress(string name)
+        private static string GetAdapterIPAddress(string name, IDictionary<string, string> adapterIpLookup)
         {
-            //Here we need to match the apdapter returned by the network interface to the
-            //adapter represented by this instance of the class.
+            if (adapterIpLookup == null || string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
 
-            string configuredName = Regex.Replace(name, @"[^\w\d\s]", "");
+            string configuredName = NormalizeAdapterName(name);
+            string ipAddress;
+            return adapterIpLookup.TryGetValue(configuredName, out ipAddress) ? ipAddress : null;
+        }
+
+        private static IDictionary<string, string> BuildAdapterIPAddressLookup()
+        {
+            Dictionary<string, string> adapterIpLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (NetworkInterface netif in NetworkInterface.GetAllNetworkInterfaces())
             {
-                //Strange pattern matching as the Performance Monitor routines which provide the ID and Names
-                //instantiating this class return different values for the devices than the NetworkInterface calls used here.
-                //For example Performance Monitor routines return Intel[R] where as NetworkInterface returns Intel(R) causing the
-                //strings not to match.  So to get around this, use Regex to strip off the special characters and just compare the string values.
-                //Also, in some cases the values for Description match the Performance Monitor calls, and 
-                //in others the Name is what matches.  It's a little weird, but this will pick up all 4 network adapters on 
-                //my test machine correctly.
-
-                string interfaceDesc = Regex.Replace(netif.Description, @"[^\w\d\s]", "");
-                string interfaceName = Regex.Replace(netif.Name, @"[^\w\d\s]", "");
-
-                if (interfaceDesc == configuredName || interfaceName == configuredName)
+                string ipAddress = GetIPv4Address(netif);
+                if (string.IsNullOrEmpty(ipAddress))
                 {
-                    IPInterfaceProperties properties = netif.GetIPProperties();
+                    continue;
+                }
 
-                    foreach (IPAddressInformation unicast in properties.UnicastAddresses)
-                    {
-                        if (unicast.Address.AddressFamily == AddressFamily.InterNetwork)
-                        {
-                            return unicast.Address.ToString();
-                        }
-                    }
+                string interfaceDesc = NormalizeAdapterName(netif.Description);
+                if (!string.IsNullOrWhiteSpace(interfaceDesc) && !adapterIpLookup.ContainsKey(interfaceDesc))
+                {
+                    adapterIpLookup.Add(interfaceDesc, ipAddress);
+                }
+
+                string interfaceName = NormalizeAdapterName(netif.Name);
+                if (!string.IsNullOrWhiteSpace(interfaceName) && !adapterIpLookup.ContainsKey(interfaceName))
+                {
+                    adapterIpLookup.Add(interfaceName, ipAddress);
+                }
+            }
+
+            return adapterIpLookup;
+        }
+
+        private static string GetIPv4Address(NetworkInterface netif)
+        {
+            IPInterfaceProperties properties = netif.GetIPProperties();
+
+            foreach (IPAddressInformation unicast in properties.UnicastAddresses)
+            {
+                if (unicast.Address.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    return unicast.Address.ToString();
                 }
             }
 
             return null;
+        }
+
+        private static string NormalizeAdapterName(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? string.Empty : Regex.Replace(value, @"[^\w\d\s]", "");
         }
 
         private static string GetExternalIPAddress()
@@ -1553,6 +1613,44 @@ namespace SidebarDiagnostics.Monitoring
             catch (WebException)
             {
                 return "";
+            }
+        }
+
+        private static void RefreshExternalIPAddressAsync(NetworkMonitor[] monitors)
+        {
+            if (monitors == null || monitors.Length == 0)
+            {
+                return;
+            }
+
+            Task.Run(() =>
+            {
+                string extIP = GetExternalIPAddress();
+                if (string.IsNullOrWhiteSpace(extIP))
+                {
+                    extIP = "Unavailable";
+                }
+
+                if (App.Current == null)
+                {
+                    return;
+                }
+
+                App.Current.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                {
+                    foreach (NetworkMonitor monitor in monitors)
+                    {
+                        monitor.SetExternalIPAddress(extIP);
+                    }
+                }));
+            });
+        }
+
+        private void SetExternalIPAddress(string extIP)
+        {
+            if (_externalIPMetric != null)
+            {
+                _externalIPMetric.SetText(extIP);
             }
         }
 
@@ -1634,6 +1732,10 @@ namespace SidebarDiagnostics.Monitoring
         }
 
         private bool _disposed { get; set; } = false;
+
+        private bool _countersAvailable { get; set; } = true;
+
+        private IPMetric _externalIPMetric { get; set; }
     }
 
     public interface iMetric : INotifyPropertyChanged, IDisposable
@@ -1784,6 +1886,11 @@ namespace SidebarDiagnostics.Monitoring
             }
             protected set
             {
+                if (_key == value)
+                {
+                    return;
+                }
+
                 _key = value;
 
                 NotifyPropertyChanged("Key");
@@ -1800,6 +1907,11 @@ namespace SidebarDiagnostics.Monitoring
             }
             protected set
             {
+                if (_fullName == value)
+                {
+                    return;
+                }
+
                 _fullName = value;
 
                 NotifyPropertyChanged("FullName");
@@ -1816,6 +1928,11 @@ namespace SidebarDiagnostics.Monitoring
             }
             protected set
             {
+                if (_label == value)
+                {
+                    return;
+                }
+
                 _label = value;
 
                 NotifyPropertyChanged("Label");
@@ -1832,6 +1949,11 @@ namespace SidebarDiagnostics.Monitoring
             }
             protected set
             {
+                if (_value == value)
+                {
+                    return;
+                }
+
                 _value = value;
 
                 NotifyPropertyChanged("Value");
@@ -1848,6 +1970,11 @@ namespace SidebarDiagnostics.Monitoring
             }
             protected set
             {
+                if (_append == value)
+                {
+                    return;
+                }
+
                 _append = value;
 
                 NotifyPropertyChanged("Append");
@@ -1864,6 +1991,11 @@ namespace SidebarDiagnostics.Monitoring
             }
             set
             {
+                if (_nValue == value)
+                {
+                    return;
+                }
+
                 _nValue = value;
 
                 NotifyPropertyChanged("nValue");
@@ -1880,6 +2012,11 @@ namespace SidebarDiagnostics.Monitoring
             }
             set
             {
+                if (_nAppend == value)
+                {
+                    return;
+                }
+
                 _nAppend = value;
 
                 NotifyPropertyChanged("nAppend");
@@ -1896,6 +2033,11 @@ namespace SidebarDiagnostics.Monitoring
             }
             protected set
             {
+                if (_text == value)
+                {
+                    return;
+                }
+
                 _text = value;
 
                 NotifyPropertyChanged("Text");
@@ -1912,9 +2054,15 @@ namespace SidebarDiagnostics.Monitoring
             }
             protected set
             {
+                if (_isAlert == value)
+                {
+                    return;
+                }
+
                 _isAlert = value;
 
                 NotifyPropertyChanged("IsAlert");
+                NotifyPropertyChanged("AlertColor");
 
                 if (value)
                 {
@@ -2082,6 +2230,11 @@ namespace SidebarDiagnostics.Monitoring
             Text = ipAddress;
         }
 
+        public void SetText(string ipAddress)
+        {
+            Text = ipAddress;
+        }
+
         public new void Dispose()
         {
             Dispose(true);
@@ -2150,14 +2303,14 @@ namespace SidebarDiagnostics.Monitoring
     {
         private PerformanceCounter _bandwidthCounter;
         private iConverter _displayConverter;
-        private bool _round;
+        private bool _displayRound;
 
         public NetworkBarMetric(PerformanceCounter counter, MetricKey key, string label, bool round, iConverter displayConverter)
             : base(counter, key, DataType.Percent, label, round, 0, PercentOf1GbpsConverter.Instance)
         {
             _bandwidthCounter = counter;
             _displayConverter = displayConverter;
-            _round = round;
+            _displayRound = round;
         }
 
         public override void Update()
@@ -2187,7 +2340,7 @@ namespace SidebarDiagnostics.Monitoring
                 append = DataType.kBps.GetAppend();
             }
 
-            Text = string.Format("{0:#,##0.##}{1}", displayVal.Round(_round), append);
+            Text = string.Format("{0:#,##0.##}{1}", displayVal.Round(_displayRound), append);
         }
     }
 
@@ -3869,13 +4022,30 @@ namespace SidebarDiagnostics.Monitoring
 
     public class ProcessEntry : INotifyPropertyChanged
     {
-        public ProcessEntry(int pid, string name, string cpuText, string ramText, RelayCommand killCommand)
+        private const uint NO_ERROR = 0;
+        private const uint ERROR_INSUFFICIENT_BUFFER = 122;
+        private static readonly TimeSpan ToolTipCacheLifetime = TimeSpan.FromSeconds(2);
+        private readonly object _toolTipLock = new object();
+        private Task _toolTipRefreshTask;
+        private DateTime _lastToolTipRefreshUtc = DateTime.MinValue;
+
+        public ProcessEntry(int pid, string name, string rowLabel, string cpuText, string ramText, RelayCommand killCommand)
         {
             Pid = pid;
+            KillCommand = killCommand;
             Name = name;
+            RowLabel = string.IsNullOrWhiteSpace(rowLabel) ? BuildRowLabel(name, pid) : rowLabel;
             CpuText = cpuText;
             RamText = ramText;
-            KillCommand = killCommand;
+
+            ToolTipTitle = name;
+            ToolTipSubtitle = BuildToolTipSubtitle(name, pid);
+            ToolTipPath = "Hover to load full process details.";
+            ToolTipDisk = "Loading on hover.";
+            ToolTipGpu = "Loading on hover.";
+            ToolTipNetwork = "Loading on hover.";
+            ToolTipOther = "Loading on hover.";
+            ToolTipStatus = string.Empty;
         }
 
         public void NotifyPropertyChanged(string propertyName)
@@ -3891,28 +4061,1062 @@ namespace SidebarDiagnostics.Monitoring
         public string Name
         {
             get { return _name; }
-            set { _name = value; NotifyPropertyChanged("Name"); }
+            set
+            {
+                if (!SetProperty(ref _name, value, "Name"))
+                {
+                    return;
+                }
+
+                RowLabel = BuildRowLabel(value, Pid);
+            }
+        }
+
+        private string _rowLabel;
+        public string RowLabel
+        {
+            get { return _rowLabel; }
+            private set { SetProperty(ref _rowLabel, value, "RowLabel"); }
+        }
+
+        public void SetRowLabel(string rowLabel)
+        {
+            RowLabel = string.IsNullOrWhiteSpace(rowLabel) ? BuildRowLabel(Name, Pid) : rowLabel;
         }
 
         private string _cpuText;
         public string CpuText
         {
             get { return _cpuText; }
-            set { _cpuText = value; NotifyPropertyChanged("CpuText"); }
+            set
+            {
+                if (!SetProperty(ref _cpuText, value, "CpuText"))
+                {
+                    return;
+                }
+            }
         }
 
         private string _ramText;
         public string RamText
         {
             get { return _ramText; }
-            set { _ramText = value; NotifyPropertyChanged("RamText"); }
+            set
+            {
+                if (!SetProperty(ref _ramText, value, "RamText"))
+                {
+                    return;
+                }
+
+                NotifyPropertyChanged("ToolTipMemory");
+            }
+        }
+
+        private string _toolTipTitle;
+        public string ToolTipTitle
+        {
+            get { return _toolTipTitle; }
+            private set { SetProperty(ref _toolTipTitle, value, "ToolTipTitle"); }
+        }
+
+        private string _toolTipSubtitle;
+        public string ToolTipSubtitle
+        {
+            get { return _toolTipSubtitle; }
+            private set { SetProperty(ref _toolTipSubtitle, value, "ToolTipSubtitle"); }
+        }
+
+        private string _toolTipPath;
+        public string ToolTipPath
+        {
+            get { return _toolTipPath; }
+            private set { SetProperty(ref _toolTipPath, value, "ToolTipPath"); }
+        }
+
+        private string _toolTipMemoryDetails;
+        public string ToolTipMemory
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(RamText))
+                {
+                    return string.IsNullOrWhiteSpace(_toolTipMemoryDetails) ? "Memory details unavailable." : _toolTipMemoryDetails;
+                }
+
+                return string.IsNullOrWhiteSpace(_toolTipMemoryDetails)
+                    ? string.Format("Working set {0}", RamText)
+                    : string.Format("Working set {0} | {1}", RamText, _toolTipMemoryDetails);
+            }
+        }
+
+        private string _toolTipDisk;
+        public string ToolTipDisk
+        {
+            get { return _toolTipDisk; }
+            private set { SetProperty(ref _toolTipDisk, value, "ToolTipDisk"); }
+        }
+
+        private string _toolTipGpu;
+        public string ToolTipGpu
+        {
+            get { return _toolTipGpu; }
+            private set { SetProperty(ref _toolTipGpu, value, "ToolTipGpu"); }
+        }
+
+        private string _toolTipNetwork;
+        public string ToolTipNetwork
+        {
+            get { return _toolTipNetwork; }
+            private set { SetProperty(ref _toolTipNetwork, value, "ToolTipNetwork"); }
+        }
+
+        private string _toolTipOther;
+        public string ToolTipOther
+        {
+            get { return _toolTipOther; }
+            private set { SetProperty(ref _toolTipOther, value, "ToolTipOther"); }
+        }
+
+        private string _toolTipStatus;
+        public string ToolTipStatus
+        {
+            get { return _toolTipStatus; }
+            private set { SetProperty(ref _toolTipStatus, value, "ToolTipStatus"); }
         }
 
         public RelayCommand KillCommand { get; }
+
+        public async Task RefreshToolTipAsync()
+        {
+            Task refreshTask;
+
+            lock (_toolTipLock)
+            {
+                if (_toolTipRefreshTask != null && !_toolTipRefreshTask.IsCompleted)
+                {
+                    refreshTask = _toolTipRefreshTask;
+                }
+                else if (DateTime.UtcNow - _lastToolTipRefreshUtc < ToolTipCacheLifetime)
+                {
+                    return;
+                }
+                else
+                {
+                    ToolTipStatus = "Loading process details...";
+                    refreshTask = _toolTipRefreshTask = RefreshToolTipCoreAsync();
+                }
+            }
+
+            try
+            {
+                await refreshTask;
+            }
+            catch
+            {
+            }
+        }
+
+        private async Task RefreshToolTipCoreAsync()
+        {
+            ProcessToolTipSnapshot snapshot;
+
+            try
+            {
+                snapshot = await Task.Run(() => CaptureToolTipSnapshot(Pid, Name));
+            }
+            catch (Exception ex)
+            {
+                snapshot = ProcessToolTipSnapshot.CreateError(Name, Pid, ex.Message);
+            }
+            finally
+            {
+                lock (_toolTipLock)
+                {
+                    _lastToolTipRefreshUtc = DateTime.UtcNow;
+                    _toolTipRefreshTask = null;
+                }
+            }
+
+            ApplyToolTipSnapshot(snapshot);
+        }
+
+        private void ApplyToolTipSnapshot(ProcessToolTipSnapshot snapshot)
+        {
+            ToolTipTitle = snapshot.Title;
+            ToolTipSubtitle = snapshot.Subtitle;
+            ToolTipPath = snapshot.Path;
+            ToolTipMemoryDetails = snapshot.MemoryDetails;
+            ToolTipDisk = snapshot.Disk;
+            ToolTipGpu = snapshot.Gpu;
+            ToolTipNetwork = snapshot.Network;
+            ToolTipOther = snapshot.Other;
+            ToolTipStatus = snapshot.Status;
+        }
+
+        private string ToolTipMemoryDetails
+        {
+            get { return _toolTipMemoryDetails; }
+            set
+            {
+                if (!SetProperty(ref _toolTipMemoryDetails, value, "ToolTipMemoryDetails"))
+                {
+                    return;
+                }
+
+                NotifyPropertyChanged("ToolTipMemory");
+            }
+        }
+
+        private bool SetProperty<T>(ref T field, T value, string propertyName)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            NotifyPropertyChanged(propertyName);
+            return true;
+        }
+
+        private static ProcessToolTipSnapshot CaptureToolTipSnapshot(int pid, string fallbackName)
+        {
+            ProcessToolTipSnapshot snapshot = ProcessToolTipSnapshot.CreatePending(fallbackName, pid);
+
+            try
+            {
+                using (Process process = Process.GetProcessById(pid))
+                {
+                    process.Refresh();
+
+                    string processName = SafeGetProcessName(process, fallbackName);
+                    string processPath = TryGetProcessPath(process);
+
+                    snapshot.Title = GetFriendlyProcessName(processPath, processName);
+                    snapshot.Subtitle = BuildToolTipSubtitle(processName, pid);
+                    snapshot.Path = string.IsNullOrWhiteSpace(processPath) ? "Path unavailable." : processPath;
+                    snapshot.MemoryDetails = BuildMemoryDetails(process);
+                    snapshot.Disk = BuildDiskText(process);
+                    snapshot.Gpu = BuildGpuText(pid);
+                    snapshot.Network = BuildNetworkText(pid);
+                    snapshot.Other = BuildOtherText(process);
+                    snapshot.Status = string.Format("Updated {0:T}", DateTime.Now);
+                }
+            }
+            catch (ArgumentException)
+            {
+                snapshot = ProcessToolTipSnapshot.CreateError(fallbackName, pid, "Process exited before details could be loaded.");
+            }
+            catch (InvalidOperationException)
+            {
+                snapshot = ProcessToolTipSnapshot.CreateError(fallbackName, pid, "Process details are unavailable.");
+            }
+            catch (Win32Exception)
+            {
+                snapshot = ProcessToolTipSnapshot.CreateError(fallbackName, pid, "Access to this process is restricted.");
+            }
+
+            return snapshot;
+        }
+
+        private static string SafeGetProcessName(Process process, string fallbackName)
+        {
+            try
+            {
+                return string.IsNullOrWhiteSpace(process.ProcessName) ? fallbackName : process.ProcessName;
+            }
+            catch
+            {
+                return fallbackName;
+            }
+        }
+
+        private static string TryGetProcessPath(Process process)
+        {
+            try
+            {
+                return process.MainModule == null ? null : process.MainModule.FileName;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string GetFriendlyProcessName(string processPath, string fallbackName)
+        {
+            if (!string.IsNullOrWhiteSpace(processPath))
+            {
+                try
+                {
+                    FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(processPath);
+                    if (!string.IsNullOrWhiteSpace(versionInfo.FileDescription))
+                    {
+                        return versionInfo.FileDescription;
+                    }
+                }
+                catch
+                {
+                }
+
+                string fileName = Path.GetFileNameWithoutExtension(processPath);
+                if (!string.IsNullOrWhiteSpace(fileName))
+                {
+                    return fileName;
+                }
+            }
+
+            return fallbackName;
+        }
+
+        private static string BuildToolTipSubtitle(string processName, int pid)
+        {
+            return string.Format("{0} (PID {1})", processName, pid);
+        }
+
+        private static string BuildRowLabel(string processName, int pid)
+        {
+            return string.Format("{0} [{1}]", processName, pid);
+        }
+
+        private static string BuildMemoryDetails(Process process)
+        {
+            List<string> parts = new List<string>(2);
+
+            long privateBytes = TryGetInt64(() => process.PrivateMemorySize64);
+            if (privateBytes >= 0)
+            {
+                parts.Add(string.Format("Private {0}", FormatBytes(privateBytes)));
+            }
+
+            long pagedBytes = TryGetInt64(() => process.PagedMemorySize64);
+            if (pagedBytes >= 0)
+            {
+                parts.Add(string.Format("Paged {0}", FormatBytes(pagedBytes)));
+            }
+
+            return parts.Count == 0 ? "Memory details unavailable." : string.Join(" | ", parts);
+        }
+
+        private static string BuildDiskText(Process process)
+        {
+            IO_COUNTERS counters;
+            try
+            {
+                if (!GetProcessIoCounters(process.Handle, out counters))
+                {
+                    return "I/O counters unavailable.";
+                }
+            }
+            catch
+            {
+                return "I/O counters unavailable.";
+            }
+
+            return string.Format(
+                "Read {0} | Write {1} | Ops {2}/{3}",
+                FormatBytes(counters.ReadTransferCount),
+                FormatBytes(counters.WriteTransferCount),
+                FormatCount(counters.ReadOperationCount),
+                FormatCount(counters.WriteOperationCount));
+        }
+
+        private static string BuildGpuText(int pid)
+        {
+            ProcessGpuSnapshot snapshot = GetProcessGpuSnapshot(pid);
+            if (!snapshot.HasData)
+            {
+                return "No active GPU counters.";
+            }
+
+            List<string> parts = new List<string>(3);
+
+            if (snapshot.HasUtilization)
+            {
+                parts.Add(string.Format("{0:0.#}% usage", snapshot.Utilization));
+            }
+
+            if (snapshot.HasMemory)
+            {
+                parts.Add(string.Format("{0} dedicated", FormatBytes(snapshot.DedicatedBytes)));
+                parts.Add(string.Format("{0} shared", FormatBytes(snapshot.SharedBytes)));
+            }
+
+            return parts.Count == 0 ? "No active GPU counters." : string.Join(" | ", parts);
+        }
+
+        private static ProcessGpuSnapshot GetProcessGpuSnapshot(int pid)
+        {
+            ProcessGpuSnapshot snapshot = new ProcessGpuSnapshot();
+            string prefix = string.Format("pid_{0}_", pid);
+
+            try
+            {
+                using (ManagementObjectSearcher searcher = new ManagementObjectSearcher(@"root\CIMV2", "SELECT Name, UtilizationPercentage FROM Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine"))
+                using (ManagementObjectCollection results = searcher.Get())
+                {
+                    foreach (ManagementObject result in results)
+                    {
+                        string name = result["Name"] as string;
+                        if (name == null || !name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        snapshot.HasUtilization = true;
+                        snapshot.Utilization += ToDouble(result["UtilizationPercentage"]);
+                    }
+                }
+            }
+            catch (ManagementException)
+            {
+            }
+
+            try
+            {
+                using (ManagementObjectSearcher searcher = new ManagementObjectSearcher(@"root\CIMV2", "SELECT Name, DedicatedUsage, SharedUsage FROM Win32_PerfFormattedData_GPUPerformanceCounters_GPUProcessMemory"))
+                using (ManagementObjectCollection results = searcher.Get())
+                {
+                    foreach (ManagementObject result in results)
+                    {
+                        string name = result["Name"] as string;
+                        if (name == null || !name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        snapshot.HasMemory = true;
+                        snapshot.DedicatedBytes += ToUInt64(result["DedicatedUsage"]);
+                        snapshot.SharedBytes += ToUInt64(result["SharedUsage"]);
+                    }
+                }
+            }
+            catch (ManagementException)
+            {
+            }
+
+            return snapshot;
+        }
+
+        private static string BuildNetworkText(int pid)
+        {
+            ProcessNetworkSnapshot snapshot = GetProcessNetworkSnapshot(pid);
+            if (!snapshot.HasData)
+            {
+                return "Connection data unavailable.";
+            }
+
+            return string.Format("{0} TCP | {1} UDP", snapshot.TcpConnections, snapshot.UdpListeners);
+        }
+
+        private static ProcessNetworkSnapshot GetProcessNetworkSnapshot(int pid)
+        {
+            try
+            {
+                return new ProcessNetworkSnapshot
+                {
+                    HasData = true,
+                    TcpConnections =
+                        CountRows<MibTcpRowOwnerPid>(AddressFamily.InterNetwork, TcpTableClass.TCP_TABLE_OWNER_PID_ALL, row => row.owningPid, pid) +
+                        CountRows<MibTcp6RowOwnerPid>(AddressFamily.InterNetworkV6, TcpTableClass.TCP_TABLE_OWNER_PID_ALL, row => row.owningPid, pid),
+                    UdpListeners =
+                        CountUdpRows<MibUdpRowOwnerPid>(AddressFamily.InterNetwork, UdpTableClass.UDP_TABLE_OWNER_PID, row => row.owningPid, pid) +
+                        CountUdpRows<MibUdp6RowOwnerPid>(AddressFamily.InterNetworkV6, UdpTableClass.UDP_TABLE_OWNER_PID, row => row.owningPid, pid)
+                };
+            }
+            catch
+            {
+                return new ProcessNetworkSnapshot();
+            }
+        }
+
+        private static int CountRows<T>(AddressFamily family, TcpTableClass tableClass, Func<T, uint> getPid, int pid) where T : struct
+        {
+            int bufferLength = 0;
+            uint result = GetExtendedTcpTable(IntPtr.Zero, ref bufferLength, false, (int)family, tableClass, 0);
+            if (result != NO_ERROR && result != ERROR_INSUFFICIENT_BUFFER)
+            {
+                return 0;
+            }
+
+            IntPtr buffer = Marshal.AllocHGlobal(bufferLength);
+            try
+            {
+                result = GetExtendedTcpTable(buffer, ref bufferLength, false, (int)family, tableClass, 0);
+                if (result != NO_ERROR)
+                {
+                    return 0;
+                }
+
+                int count = Marshal.ReadInt32(buffer);
+                IntPtr rowPtr = IntPtr.Add(buffer, sizeof(int));
+                int rowSize = Marshal.SizeOf(typeof(T));
+                int matches = 0;
+
+                for (int i = 0; i < count; i++)
+                {
+                    T row = (T)Marshal.PtrToStructure(rowPtr, typeof(T));
+                    if (getPid(row) == pid)
+                    {
+                        matches++;
+                    }
+
+                    rowPtr = IntPtr.Add(rowPtr, rowSize);
+                }
+
+                return matches;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+
+        private static int CountUdpRows<T>(AddressFamily family, UdpTableClass tableClass, Func<T, uint> getPid, int pid) where T : struct
+        {
+            int bufferLength = 0;
+            uint result = GetExtendedUdpTable(IntPtr.Zero, ref bufferLength, false, (int)family, tableClass, 0);
+            if (result != NO_ERROR && result != ERROR_INSUFFICIENT_BUFFER)
+            {
+                return 0;
+            }
+
+            IntPtr buffer = Marshal.AllocHGlobal(bufferLength);
+            try
+            {
+                result = GetExtendedUdpTable(buffer, ref bufferLength, false, (int)family, tableClass, 0);
+                if (result != NO_ERROR)
+                {
+                    return 0;
+                }
+
+                int count = Marshal.ReadInt32(buffer);
+                IntPtr rowPtr = IntPtr.Add(buffer, sizeof(int));
+                int rowSize = Marshal.SizeOf(typeof(T));
+                int matches = 0;
+
+                for (int i = 0; i < count; i++)
+                {
+                    T row = (T)Marshal.PtrToStructure(rowPtr, typeof(T));
+                    if (getPid(row) == pid)
+                    {
+                        matches++;
+                    }
+
+                    rowPtr = IntPtr.Add(rowPtr, rowSize);
+                }
+
+                return matches;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+
+        private static string BuildOtherText(Process process)
+        {
+            List<string> parts = new List<string>(5);
+
+            int threads = TryGetInt32(() => process.Threads.Count);
+            if (threads >= 0)
+            {
+                parts.Add(string.Format("Threads {0}", threads));
+            }
+
+            int handles = TryGetInt32(() => process.HandleCount);
+            if (handles >= 0)
+            {
+                parts.Add(string.Format("Handles {0}", handles));
+            }
+
+            string priority = TryGetString(() => process.PriorityClass.ToString());
+            if (!string.IsNullOrWhiteSpace(priority))
+            {
+                parts.Add(string.Format("Priority {0}", priority));
+            }
+
+            DateTime? startTime = TryGetDateTime(() => process.StartTime);
+            if (startTime.HasValue)
+            {
+                parts.Add(string.Format("Started {0:g}", startTime.Value));
+            }
+
+            bool? responding = TryGetBool(() => process.Responding);
+            if (responding.HasValue)
+            {
+                parts.Add(string.Format("Responding {0}", responding.Value ? "Yes" : "No"));
+            }
+
+            return parts.Count == 0 ? "Additional process stats unavailable." : string.Join(" | ", parts);
+        }
+
+        private static string FormatBytes(ulong bytes)
+        {
+            return FormatBytes((double)bytes);
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            return FormatBytes((double)bytes);
+        }
+
+        private static string FormatBytes(double bytes)
+        {
+            string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
+            double value = bytes;
+            int suffixIndex = 0;
+
+            while (value >= 1024d && suffixIndex < suffixes.Length - 1)
+            {
+                value /= 1024d;
+                suffixIndex++;
+            }
+
+            string format = suffixIndex == 0 ? "0" : "0.##";
+            return string.Format("{0:" + format + "} {1}", value, suffixes[suffixIndex]);
+        }
+
+        private static string FormatCount(ulong count)
+        {
+            return string.Format("{0:#,##0}", count);
+        }
+
+        private static long TryGetInt64(Func<long> getter)
+        {
+            try
+            {
+                return getter();
+            }
+            catch
+            {
+                return -1;
+            }
+        }
+
+        private static int TryGetInt32(Func<int> getter)
+        {
+            try
+            {
+                return getter();
+            }
+            catch
+            {
+                return -1;
+            }
+        }
+
+        private static string TryGetString(Func<string> getter)
+        {
+            try
+            {
+                return getter();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static bool? TryGetBool(Func<bool> getter)
+        {
+            try
+            {
+                return getter();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static DateTime? TryGetDateTime(Func<DateTime> getter)
+        {
+            try
+            {
+                return getter();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static double ToDouble(object value)
+        {
+            if (value == null)
+            {
+                return 0;
+            }
+
+            try
+            {
+                return Convert.ToDouble(value);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private static ulong ToUInt64(object value)
+        {
+            if (value == null)
+            {
+                return 0;
+            }
+
+            try
+            {
+                return Convert.ToUInt64(value);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetProcessIoCounters(IntPtr hProcess, out IO_COUNTERS lpIoCounters);
+
+        [DllImport("iphlpapi.dll", SetLastError = true)]
+        private static extern uint GetExtendedTcpTable(IntPtr pTcpTable, ref int pdwSize, bool order, int ipVersion, TcpTableClass tableClass, uint reserved);
+
+        [DllImport("iphlpapi.dll", SetLastError = true)]
+        private static extern uint GetExtendedUdpTable(IntPtr pUdpTable, ref int pdwSize, bool order, int ipVersion, UdpTableClass tableClass, uint reserved);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct IO_COUNTERS
+        {
+            public ulong ReadOperationCount;
+            public ulong WriteOperationCount;
+            public ulong OtherOperationCount;
+            public ulong ReadTransferCount;
+            public ulong WriteTransferCount;
+            public ulong OtherTransferCount;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MibTcpRowOwnerPid
+        {
+            public uint state;
+            public uint localAddr;
+            public uint localPort;
+            public uint remoteAddr;
+            public uint remotePort;
+            public uint owningPid;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MibTcp6RowOwnerPid
+        {
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+            public byte[] localAddr;
+            public uint localScopeId;
+            public uint localPort;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+            public byte[] remoteAddr;
+            public uint remoteScopeId;
+            public uint remotePort;
+            public uint state;
+            public uint owningPid;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MibUdpRowOwnerPid
+        {
+            public uint localAddr;
+            public uint localPort;
+            public uint owningPid;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MibUdp6RowOwnerPid
+        {
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+            public byte[] localAddr;
+            public uint localScopeId;
+            public uint localPort;
+            public uint owningPid;
+        }
+
+        private enum TcpTableClass
+        {
+            TCP_TABLE_OWNER_PID_ALL = 5
+        }
+
+        private enum UdpTableClass
+        {
+            UDP_TABLE_OWNER_PID = 1
+        }
+
+        private struct ProcessGpuSnapshot
+        {
+            public bool HasUtilization;
+            public bool HasMemory;
+            public double Utilization;
+            public ulong DedicatedBytes;
+            public ulong SharedBytes;
+
+            public bool HasData
+            {
+                get { return HasUtilization || HasMemory; }
+            }
+        }
+
+        private struct ProcessNetworkSnapshot
+        {
+            public bool HasData;
+            public int TcpConnections;
+            public int UdpListeners;
+        }
+
+        private sealed class ProcessToolTipSnapshot
+        {
+            public string Title { get; set; }
+            public string Subtitle { get; set; }
+            public string Path { get; set; }
+            public string MemoryDetails { get; set; }
+            public string Disk { get; set; }
+            public string Gpu { get; set; }
+            public string Network { get; set; }
+            public string Other { get; set; }
+            public string Status { get; set; }
+
+            public static ProcessToolTipSnapshot CreatePending(string fallbackName, int pid)
+            {
+                return new ProcessToolTipSnapshot
+                {
+                    Title = fallbackName,
+                    Subtitle = BuildToolTipSubtitle(fallbackName, pid),
+                    Path = "Hover to load full process details.",
+                    MemoryDetails = string.Empty,
+                    Disk = "Loading on hover.",
+                    Gpu = "Loading on hover.",
+                    Network = "Loading on hover.",
+                    Other = "Loading on hover.",
+                    Status = string.Empty
+                };
+            }
+
+            public static ProcessToolTipSnapshot CreateError(string fallbackName, int pid, string message)
+            {
+                return new ProcessToolTipSnapshot
+                {
+                    Title = fallbackName,
+                    Subtitle = BuildToolTipSubtitle(fallbackName, pid),
+                    Path = "Path unavailable.",
+                    MemoryDetails = "Memory details unavailable.",
+                    Disk = "Unavailable.",
+                    Gpu = "Unavailable.",
+                    Network = "Unavailable.",
+                    Other = "No additional stats available.",
+                    Status = message
+                };
+            }
+        }
+    }
+
+    public class ProcessGroupEntry : INotifyPropertyChanged
+    {
+        public ProcessGroupEntry(int rootPid, string displayName, string cpuText, string ramText, int processCount, RelayCommand toggleExpandCommand, RelayCommand killTreeCommand)
+        {
+            RootPid = rootPid;
+            DisplayName = displayName;
+            CpuText = cpuText;
+            RamText = ramText;
+            ProcessCount = processCount;
+            ToggleExpandCommand = toggleExpandCommand;
+            KillTreeCommand = killTreeCommand;
+            Children = new ObservableCollection<ProcessEntry>();
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        public int RootPid { get; }
+
+        public RelayCommand ToggleExpandCommand { get; }
+
+        public RelayCommand KillTreeCommand { get; }
+
+        public ObservableCollection<ProcessEntry> Children { get; }
+
+        private string _displayName;
+        public string DisplayName
+        {
+            get { return _displayName; }
+            set
+            {
+                if (!SetProperty(ref _displayName, value, "DisplayName"))
+                {
+                    return;
+                }
+
+                NotifyPropertyChanged("SummaryName");
+            }
+        }
+
+        private string _cpuText;
+        public string CpuText
+        {
+            get { return _cpuText; }
+            set { SetProperty(ref _cpuText, value, "CpuText"); }
+        }
+
+        private string _ramText;
+        public string RamText
+        {
+            get { return _ramText; }
+            set { SetProperty(ref _ramText, value, "RamText"); }
+        }
+
+        private double _cpuBarValue;
+        public double CpuBarValue
+        {
+            get { return _cpuBarValue; }
+            set { SetProperty(ref _cpuBarValue, value, "CpuBarValue"); }
+        }
+
+        private double _ramBarValue;
+        public double RamBarValue
+        {
+            get { return _ramBarValue; }
+            set { SetProperty(ref _ramBarValue, value, "RamBarValue"); }
+        }
+
+        private int _processCount;
+        public int ProcessCount
+        {
+            get { return _processCount; }
+            set
+            {
+                if (!SetProperty(ref _processCount, value, "ProcessCount"))
+                {
+                    return;
+                }
+
+                NotifyPropertyChanged("SummaryName");
+                NotifyPropertyChanged("CountText");
+                NotifyPropertyChanged("HasChildren");
+            }
+        }
+
+        private bool _isExpanded;
+        public bool IsExpanded
+        {
+            get { return _isExpanded; }
+            set
+            {
+                if (!SetProperty(ref _isExpanded, value, "IsExpanded"))
+                {
+                    return;
+                }
+
+                NotifyPropertyChanged("ExpandGlyph");
+            }
+        }
+
+        public string SummaryName
+        {
+            get
+            {
+                return ProcessCount > 1
+                    ? string.Format("{0} ({1})", DisplayName, ProcessCount)
+                    : DisplayName;
+            }
+        }
+
+        public string CountText
+        {
+            get { return string.Format("({0})", ProcessCount); }
+        }
+
+        public bool HasChildren
+        {
+            get { return ProcessCount > 1; }
+        }
+
+        public string ExpandGlyph
+        {
+            get { return IsExpanded ? "▼" : "▶"; }
+        }
+
+        private bool _canEndTree;
+        public bool CanEndTree
+        {
+            get { return _canEndTree; }
+            set { SetProperty(ref _canEndTree, value, "CanEndTree"); }
+        }
+
+        private bool SetProperty<T>(ref T field, T value, string propertyName)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            NotifyPropertyChanged(propertyName);
+            return true;
+        }
+
+        private void NotifyPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 
     public class ProcessMonitor : BaseMonitor
     {
+        private const uint TH32CS_SNAPPROCESS = 0x00000002;
+        private static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
+        private static readonly HashSet<string> LauncherProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "explorer",
+            "cmd",
+            "conhost",
+            "powershell",
+            "pwsh",
+            "wt",
+            "services",
+            "wininit",
+            "winlogon",
+            "userinit",
+            "smss",
+            "csrss",
+            "applicationframehost",
+            "taskmgr"
+        };
+        private static readonly HashSet<string> ProtectedRootProcessNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "system",
+            "secure system",
+            "registry",
+            "smss",
+            "csrss",
+            "wininit",
+            "winlogon",
+            "services",
+            "lsaiso",
+            "lsass",
+            "svchost",
+            "fontdrvhost",
+            "dwm",
+            "sihost",
+            "runtimebroker",
+            "dllhost",
+            "taskhostw",
+            "applicationframehost",
+            "shellexperiencehost",
+            "startmenuexperiencehost",
+            "searchhost",
+            "searchindexer",
+            "wudfhost",
+            "audiodg",
+            "taskmgr",
+            "explorer"
+        };
+
         private struct ProcessSnapshot
         {
             public TimeSpan CpuTime;
@@ -3923,14 +5127,55 @@ namespace SidebarDiagnostics.Monitoring
         {
             public string Name;
             public int Pid;
+            public int RootPid;
             public double Cpu;
             public double RamMb;
+        }
+
+        private struct ProcessTreeNode
+        {
+            public int Pid;
+            public int ParentPid;
+            public string Name;
+        }
+
+        private sealed class ProcessGroupInfo
+        {
+            public int RootPid;
+            public string RootName;
+            public double Cpu;
+            public double RamMb;
+            public List<ProcessInfo> Children = new List<ProcessInfo>();
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct PROCESSENTRY32
+        {
+            public uint dwSize;
+            public uint cntUsage;
+            public uint th32ProcessID;
+            public IntPtr th32DefaultHeapID;
+            public uint th32ModuleID;
+            public uint cntThreads;
+            public uint th32ParentProcessID;
+            public int pcPriClassBase;
+            public uint dwFlags;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+            public string szExeFile;
         }
 
         private readonly int _count;
         private readonly bool _sortByCpu;
         private readonly int _processorCount;
+        private readonly Dictionary<int, string> _groupDisplayNameCache = new Dictionary<int, string>();
+        private readonly Dictionary<int, bool> _groupCanEndTreeCache = new Dictionary<int, bool>();
+        private readonly object _snapshotLock = new object();
+        private readonly TimeSpan _treeSnapshotCacheLifetime = TimeSpan.FromSeconds(2);
         private Dictionary<int, ProcessSnapshot> _prevData = new Dictionary<int, ProcessSnapshot>();
+        private Dictionary<int, ProcessTreeNode> _cachedTreeNodes = new Dictionary<int, ProcessTreeNode>();
+        private DateTime _nextTreeSnapshotUtc = DateTime.MinValue;
+        private Task _cpuBaselineWarmupTask;
 
         public ProcessMonitor(int count, bool sortByCpu) : base("process", "Processes", false)
         {
@@ -3938,38 +5183,71 @@ namespace SidebarDiagnostics.Monitoring
             _sortByCpu = sortByCpu;
             _processorCount = Math.Max(1, Environment.ProcessorCount);
             Metrics = new iMetric[0];
-            TopProcesses = new ObservableCollection<ProcessEntry>();
+            TopProcesses = new ObservableCollection<ProcessGroupEntry>();
         }
 
         public override void Update()
         {
+            if (_count <= 0)
+            {
+                if (TopProcesses.Count > 0)
+                {
+                    TopProcesses.Clear();
+                }
+
+                lock (_snapshotLock)
+                {
+                    _prevData = new Dictionary<int, ProcessSnapshot>();
+                }
+                _cachedTreeNodes.Clear();
+                _groupDisplayNameCache.Clear();
+                _groupCanEndTreeCache.Clear();
+                _nextTreeSnapshotUtc = DateTime.MinValue;
+                return;
+            }
+
+            Dictionary<int, ProcessTreeNode> treeNodes = GetProcessTreeSnapshot();
             Process[] procs;
             try { procs = Process.GetProcesses(); }
             catch { return; }
 
             DateTime now = DateTime.UtcNow;
+            Dictionary<int, ProcessSnapshot> previousData;
+            lock (_snapshotLock)
+            {
+                previousData = _prevData;
+            }
+
+            bool hasCpuBaseline = previousData.Count > 0;
             Dictionary<int, ProcessSnapshot> currentData = new Dictionary<int, ProcessSnapshot>(procs.Length);
             List<ProcessInfo> entries = new List<ProcessInfo>(procs.Length);
+            Dictionary<int, int> rootCache = new Dictionary<int, int>(procs.Length);
 
             foreach (Process p in procs)
             {
                 try
                 {
-                    TimeSpan totalCpuTime = p.TotalProcessorTime;
-                    currentData[p.Id] = new ProcessSnapshot { CpuTime = totalCpuTime, WallTime = now };
-
                     double cpuPercent = 0;
-                    ProcessSnapshot prev;
-                    if (_prevData.TryGetValue(p.Id, out prev))
+                    if (hasCpuBaseline)
                     {
-                        double elapsedCpu = (totalCpuTime - prev.CpuTime).TotalSeconds;
-                        double elapsedWall = (now - prev.WallTime).TotalSeconds;
-                        if (elapsedWall > 0)
-                            cpuPercent = Math.Min(100, elapsedCpu / elapsedWall / _processorCount * 100);
+                        TimeSpan totalCpuTime = p.TotalProcessorTime;
+                        currentData[p.Id] = new ProcessSnapshot { CpuTime = totalCpuTime, WallTime = now };
+
+                        ProcessSnapshot prev;
+                        if (previousData.TryGetValue(p.Id, out prev))
+                        {
+                            double elapsedCpu = (totalCpuTime - prev.CpuTime).TotalSeconds;
+                            double elapsedWall = (now - prev.WallTime).TotalSeconds;
+                            if (elapsedWall > 0)
+                            {
+                                cpuPercent = Math.Min(100, elapsedCpu / elapsedWall / _processorCount * 100);
+                            }
+                        }
                     }
 
                     double ramMb = p.WorkingSet64 / 1048576.0;
-                    entries.Add(new ProcessInfo { Name = p.ProcessName, Pid = p.Id, Cpu = cpuPercent, RamMb = ramMb });
+                    int rootPid = ResolveGroupRootPid(p.Id, treeNodes, rootCache);
+                    entries.Add(new ProcessInfo { Name = p.ProcessName, Pid = p.Id, RootPid = rootPid, Cpu = cpuPercent, RamMb = ramMb });
                 }
                 catch { }
                 finally
@@ -3978,46 +5256,680 @@ namespace SidebarDiagnostics.Monitoring
                 }
             }
 
-            _prevData = currentData;
-
-            List<ProcessInfo> sorted;
-            if (_sortByCpu)
-                sorted = entries.OrderByDescending(e => e.Cpu).ThenByDescending(e => e.RamMb).Take(_count).ToList();
-            else
-                sorted = entries.OrderByDescending(e => e.RamMb).ThenByDescending(e => e.Cpu).Take(_count).ToList();
-
-            TopProcesses.Clear();
-            foreach (ProcessInfo info in sorted)
+            if (hasCpuBaseline)
             {
-                string cpuText = string.Format("{0:0.0}%", info.Cpu);
-                string ramText = info.RamMb >= 1024
-                    ? string.Format("{0:0.0} GB", info.RamMb / 1024.0)
-                    : string.Format("{0:0} MB", info.RamMb);
-                int capturedPid = info.Pid;
-                TopProcesses.Add(new ProcessEntry(
-                    info.Pid, info.Name, cpuText, ramText,
-                    new RelayCommand(() => KillProcess(capturedPid))
-                ));
+                lock (_snapshotLock)
+                {
+                    _prevData = currentData;
+                }
+            }
+            else
+            {
+                WarmCpuBaseline();
+            }
+
+            Dictionary<int, ProcessGroupInfo> groups = BuildGroupInfos(entries, treeNodes);
+            List<ProcessGroupInfo> sortedGroups = groups.Values.ToList();
+            sortedGroups.Sort(_sortByCpu ? (Comparison<ProcessGroupInfo>)CompareGroupByCpu : CompareGroupByRam);
+
+            PruneDisplayNameCache(groups.Keys);
+
+            int visibleCount = Math.Min(_count, sortedGroups.Count);
+            double maxVisibleCpu = 0;
+            double maxVisibleRamMb = 0;
+
+            for (int i = 0; i < visibleCount; i++)
+            {
+                ProcessGroupInfo visibleGroup = sortedGroups[i];
+                if (visibleGroup.Cpu > maxVisibleCpu)
+                {
+                    maxVisibleCpu = visibleGroup.Cpu;
+                }
+
+                if (visibleGroup.RamMb > maxVisibleRamMb)
+                {
+                    maxVisibleRamMb = visibleGroup.RamMb;
+                }
+            }
+
+            for (int i = 0; i < visibleCount; i++)
+            {
+                ProcessGroupInfo info = sortedGroups[i];
+                ProcessGroupEntry entry;
+
+                if (i < TopProcesses.Count && TopProcesses[i].RootPid == info.RootPid)
+                {
+                    entry = TopProcesses[i];
+                }
+                else
+                {
+                    int existingIndex = FindGroupIndex(info.RootPid);
+                    if (existingIndex >= 0)
+                    {
+                        entry = TopProcesses[existingIndex];
+                        if (existingIndex != i)
+                        {
+                            TopProcesses.Move(existingIndex, i);
+                        }
+                    }
+                    else
+                    {
+                        entry = CreateProcessEntry(info, maxVisibleCpu, maxVisibleRamMb);
+                        TopProcesses.Insert(i, entry);
+                    }
+                }
+
+                UpdateProcessEntry(entry, info, maxVisibleCpu, maxVisibleRamMb);
+            }
+
+            while (TopProcesses.Count > visibleCount)
+            {
+                TopProcesses.RemoveAt(TopProcesses.Count - 1);
             }
         }
 
-        private void KillProcess(int pid)
+        private static int CompareByCpu(ProcessInfo left, ProcessInfo right)
+        {
+            int result = right.Cpu.CompareTo(left.Cpu);
+            if (result != 0)
+            {
+                return result;
+            }
+
+            return right.RamMb.CompareTo(left.RamMb);
+        }
+
+        private static int CompareByRam(ProcessInfo left, ProcessInfo right)
+        {
+            int result = right.RamMb.CompareTo(left.RamMb);
+            if (result != 0)
+            {
+                return result;
+            }
+
+            return right.Cpu.CompareTo(left.Cpu);
+        }
+
+        private static int CompareGroupByCpu(ProcessGroupInfo left, ProcessGroupInfo right)
+        {
+            int result = right.Cpu.CompareTo(left.Cpu);
+            if (result != 0)
+            {
+                return result;
+            }
+
+            return right.RamMb.CompareTo(left.RamMb);
+        }
+
+        private static int CompareGroupByRam(ProcessGroupInfo left, ProcessGroupInfo right)
+        {
+            int result = right.RamMb.CompareTo(left.RamMb);
+            if (result != 0)
+            {
+                return result;
+            }
+
+            return right.Cpu.CompareTo(left.Cpu);
+        }
+
+        private Dictionary<int, ProcessGroupInfo> BuildGroupInfos(List<ProcessInfo> entries, Dictionary<int, ProcessTreeNode> treeNodes)
+        {
+            Dictionary<int, ProcessGroupInfo> groups = new Dictionary<int, ProcessGroupInfo>();
+
+            foreach (ProcessInfo info in entries)
+            {
+                ProcessGroupInfo group;
+                if (!groups.TryGetValue(info.RootPid, out group))
+                {
+                    group = new ProcessGroupInfo
+                    {
+                        RootPid = info.RootPid,
+                        RootName = GetTreeNodeName(info.RootPid, treeNodes, info.Name)
+                    };
+                    groups.Add(info.RootPid, group);
+                }
+
+                group.Cpu += info.Cpu;
+                group.RamMb += info.RamMb;
+                group.Children.Add(info);
+            }
+
+            foreach (ProcessGroupInfo group in groups.Values)
+            {
+                SortChildren(group.Children, group.RootPid);
+            }
+
+            return groups;
+        }
+
+        private void SortChildren(List<ProcessInfo> children, int rootPid)
+        {
+            children.Sort((left, right) =>
+            {
+                if (left.Pid == rootPid && right.Pid != rootPid)
+                {
+                    return -1;
+                }
+
+                if (right.Pid == rootPid && left.Pid != rootPid)
+                {
+                    return 1;
+                }
+
+                return _sortByCpu ? CompareByCpu(left, right) : CompareByRam(left, right);
+            });
+        }
+
+        private int FindGroupIndex(int rootPid)
+        {
+            for (int i = 0; i < TopProcesses.Count; i++)
+            {
+                if (TopProcesses[i].RootPid == rootPid)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static int FindChildIndex(ObservableCollection<ProcessEntry> children, int pid)
+        {
+            for (int i = 0; i < children.Count; i++)
+            {
+                if (children[i].Pid == pid)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private ProcessGroupEntry CreateProcessEntry(ProcessGroupInfo info, double maxVisibleCpu, double maxVisibleRamMb)
+        {
+            ProcessGroupEntry entry = null;
+            entry = new ProcessGroupEntry(
+                info.RootPid,
+                ResolveGroupDisplayName(info.RootPid, info.RootName),
+                FormatCpuText(info.Cpu),
+                FormatRamText(info.RamMb),
+                info.Children.Count,
+                new RelayCommand(() => entry.IsExpanded = !entry.IsExpanded),
+                new RelayCommand(() => KillProcessTree(entry))
+            );
+
+            UpdateProcessEntry(entry, info, maxVisibleCpu, maxVisibleRamMb);
+            return entry;
+        }
+
+        private void UpdateProcessEntry(ProcessGroupEntry entry, ProcessGroupInfo info, double maxVisibleCpu, double maxVisibleRamMb)
+        {
+            string groupDisplayName = ResolveGroupDisplayName(info.RootPid, info.RootName);
+            entry.DisplayName = groupDisplayName;
+            entry.CpuText = FormatCpuText(info.Cpu);
+            entry.RamText = FormatRamText(info.RamMb);
+            entry.CpuBarValue = NormalizeBarValue(info.Cpu, maxVisibleCpu);
+            entry.RamBarValue = NormalizeBarValue(info.RamMb, maxVisibleRamMb);
+            entry.ProcessCount = info.Children.Count;
+            entry.CanEndTree = ResolveGroupCanEndTree(info.RootPid, info.RootName);
+
+            for (int i = 0; i < info.Children.Count; i++)
+            {
+                ProcessInfo childInfo = info.Children[i];
+                ProcessEntry childEntry;
+
+                if (i < entry.Children.Count && entry.Children[i].Pid == childInfo.Pid)
+                {
+                    childEntry = entry.Children[i];
+                }
+                else
+                {
+                    int existingIndex = FindChildIndex(entry.Children, childInfo.Pid);
+                    if (existingIndex >= 0)
+                    {
+                        childEntry = entry.Children[existingIndex];
+                        if (existingIndex != i)
+                        {
+                            entry.Children.Move(existingIndex, i);
+                        }
+                    }
+                    else
+                    {
+                        childEntry = CreateChildEntry(childInfo, groupDisplayName);
+                        entry.Children.Insert(i, childEntry);
+                    }
+                }
+
+                UpdateChildEntry(childEntry, childInfo, groupDisplayName);
+            }
+
+            while (entry.Children.Count > info.Children.Count)
+            {
+                entry.Children.RemoveAt(entry.Children.Count - 1);
+            }
+        }
+
+        private static ProcessEntry CreateChildEntry(ProcessInfo info, string groupDisplayName)
+        {
+            int capturedPid = info.Pid;
+            return new ProcessEntry(
+                info.Pid,
+                info.Name,
+                BuildChildRowLabel(groupDisplayName, info),
+                FormatCpuText(info.Cpu),
+                FormatRamText(info.RamMb),
+                new RelayCommand(() => KillProcess(capturedPid))
+            );
+        }
+
+        private static void UpdateChildEntry(ProcessEntry entry, ProcessInfo info, string groupDisplayName)
+        {
+            entry.Name = info.Name;
+            entry.SetRowLabel(BuildChildRowLabel(groupDisplayName, info));
+            entry.CpuText = FormatCpuText(info.Cpu);
+            entry.RamText = FormatRamText(info.RamMb);
+        }
+
+        private static string BuildChildRowLabel(string groupDisplayName, ProcessInfo info)
+        {
+            string label = info.Pid == info.RootPid
+                ? string.Format("{0} (main)", string.IsNullOrWhiteSpace(groupDisplayName) ? info.Name : groupDisplayName)
+                : info.Name;
+
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                label = "Process";
+            }
+
+            return string.Format("{0} [{1}]", label, info.Pid);
+        }
+
+        private static double NormalizeBarValue(double value, double maxValue)
+        {
+            if (value <= 0 || maxValue <= 0)
+            {
+                return 0;
+            }
+
+            return Math.Max(3, Math.Min(100, value / maxValue * 100));
+        }
+
+        private static string FormatCpuText(double cpu)
+        {
+            return string.Format("{0:0.0}%", cpu);
+        }
+
+        private static string FormatRamText(double ramMb)
+        {
+            return ramMb >= 1024
+                ? string.Format("{0:0.0} GB", ramMb / 1024.0)
+                : string.Format("{0:0} MB", ramMb);
+        }
+
+        private static void KillProcessTree(ProcessGroupEntry group)
+        {
+            if (group == null)
+            {
+                return;
+            }
+
+            System.Windows.MessageBoxResult result = System.Windows.MessageBox.Show(
+                string.Format("End '{0}' and {1} process{2}?", group.SummaryName, group.ProcessCount, group.ProcessCount == 1 ? "" : "es"),
+                "End App Tree",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Warning);
+
+            if (result != System.Windows.MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            List<int> pids = group.Children
+                .Select(c => c.Pid)
+                .Where(pid => pid != group.RootPid)
+                .Distinct()
+                .ToList();
+
+            pids.Add(group.RootPid);
+
+            foreach (int pid in pids)
+            {
+                try
+                {
+                    using (Process process = Process.GetProcessById(pid))
+                    {
+                        process.Kill();
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static void KillProcess(int pid)
         {
             try
             {
-                Process p = Process.GetProcessById(pid);
-                string procName = p.ProcessName;
-                System.Windows.MessageBoxResult result = System.Windows.MessageBox.Show(
-                    string.Format("Kill '{0}' (PID {1})?", procName, pid),
-                    "Kill Process",
-                    System.Windows.MessageBoxButton.YesNo,
-                    System.Windows.MessageBoxImage.Warning);
-                if (result == System.Windows.MessageBoxResult.Yes)
-                    p.Kill();
+                using (Process p = Process.GetProcessById(pid))
+                {
+                    string procName = p.ProcessName;
+                    System.Windows.MessageBoxResult result = System.Windows.MessageBox.Show(
+                        string.Format("Kill '{0}' (PID {1})?", procName, pid),
+                        "Kill Process",
+                        System.Windows.MessageBoxButton.YesNo,
+                        System.Windows.MessageBoxImage.Warning);
+                    if (result == System.Windows.MessageBoxResult.Yes)
+                        p.Kill();
+                }
             }
             catch { }
         }
 
-        public ObservableCollection<ProcessEntry> TopProcesses { get; private set; }
+        private string ResolveGroupDisplayName(int rootPid, string fallbackName)
+        {
+            string displayName;
+            if (_groupDisplayNameCache.TryGetValue(rootPid, out displayName))
+            {
+                return displayName;
+            }
+
+            displayName = fallbackName;
+
+            try
+            {
+                using (Process process = Process.GetProcessById(rootPid))
+                {
+                    string processPath = TryGetProcessPath(process);
+                    displayName = GetFriendlyProcessName(processPath, fallbackName);
+                }
+            }
+            catch
+            {
+            }
+
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                displayName = fallbackName;
+            }
+
+            _groupDisplayNameCache[rootPid] = displayName;
+            return displayName;
+        }
+
+        private void PruneDisplayNameCache(IEnumerable<int> activeRootPids)
+        {
+            HashSet<int> active = new HashSet<int>(activeRootPids);
+            List<int> stale = _groupDisplayNameCache.Keys.Where(key => !active.Contains(key)).ToList();
+            foreach (int key in stale)
+            {
+                _groupDisplayNameCache.Remove(key);
+            }
+
+            stale = _groupCanEndTreeCache.Keys.Where(key => !active.Contains(key)).ToList();
+            foreach (int key in stale)
+            {
+                _groupCanEndTreeCache.Remove(key);
+            }
+        }
+
+        private bool ResolveGroupCanEndTree(int rootPid, string fallbackName)
+        {
+            bool canEndTree;
+            if (_groupCanEndTreeCache.TryGetValue(rootPid, out canEndTree))
+            {
+                return canEndTree;
+            }
+
+            canEndTree = true;
+            try
+            {
+                using (Process process = Process.GetProcessById(rootPid))
+                {
+                    string processName = process.ProcessName;
+                    string processPath = TryGetProcessPath(process);
+                    canEndTree = IsKillableRootProcess(processName, processPath);
+                }
+            }
+            catch
+            {
+                canEndTree = IsKillableRootProcess(fallbackName, null);
+            }
+
+            _groupCanEndTreeCache[rootPid] = canEndTree;
+            return canEndTree;
+        }
+
+        private static bool IsKillableRootProcess(string processName, string processPath)
+        {
+            if (!string.IsNullOrWhiteSpace(processName) && ProtectedRootProcessNames.Contains(processName))
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(processPath))
+            {
+                return true;
+            }
+
+            string windowsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            return string.IsNullOrWhiteSpace(windowsDirectory) ||
+                !processPath.StartsWith(windowsDirectory, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string TryGetProcessPath(Process process)
+        {
+            try
+            {
+                return process.MainModule == null ? null : process.MainModule.FileName;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string GetFriendlyProcessName(string processPath, string fallbackName)
+        {
+            if (!string.IsNullOrWhiteSpace(processPath))
+            {
+                try
+                {
+                    FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(processPath);
+                    if (!string.IsNullOrWhiteSpace(versionInfo.FileDescription))
+                    {
+                        return versionInfo.FileDescription;
+                    }
+                }
+                catch
+                {
+                }
+
+                string fileName = Path.GetFileNameWithoutExtension(processPath);
+                if (!string.IsNullOrWhiteSpace(fileName))
+                {
+                    return fileName;
+                }
+            }
+
+            return fallbackName;
+        }
+
+        private static Dictionary<int, ProcessTreeNode> CollectProcessTreeSnapshot()
+        {
+            Dictionary<int, ProcessTreeNode> nodes = new Dictionary<int, ProcessTreeNode>();
+            IntPtr snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+            if (snapshot == INVALID_HANDLE_VALUE)
+            {
+                return nodes;
+            }
+
+            try
+            {
+                PROCESSENTRY32 entry = new PROCESSENTRY32();
+                entry.dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32));
+
+                if (!Process32FirstW(snapshot, ref entry))
+                {
+                    return nodes;
+                }
+
+                do
+                {
+                    string name = string.IsNullOrWhiteSpace(entry.szExeFile)
+                        ? string.Empty
+                        : Path.GetFileNameWithoutExtension(entry.szExeFile);
+
+                    nodes[(int)entry.th32ProcessID] = new ProcessTreeNode
+                    {
+                        Pid = (int)entry.th32ProcessID,
+                        ParentPid = (int)entry.th32ParentProcessID,
+                        Name = name
+                    };
+
+                    entry.dwSize = (uint)Marshal.SizeOf(typeof(PROCESSENTRY32));
+                }
+                while (Process32NextW(snapshot, ref entry));
+
+                return nodes;
+            }
+            finally
+            {
+                CloseHandle(snapshot);
+            }
+        }
+
+        private Dictionary<int, ProcessTreeNode> GetProcessTreeSnapshot()
+        {
+            DateTime now = DateTime.UtcNow;
+            if (_cachedTreeNodes.Count > 0 && now < _nextTreeSnapshotUtc)
+            {
+                return _cachedTreeNodes;
+            }
+
+            _cachedTreeNodes = CollectProcessTreeSnapshot();
+            _nextTreeSnapshotUtc = now + _treeSnapshotCacheLifetime;
+            return _cachedTreeNodes;
+        }
+
+        private void WarmCpuBaseline()
+        {
+            lock (_snapshotLock)
+            {
+                if (_prevData.Count > 0 || (_cpuBaselineWarmupTask != null && !_cpuBaselineWarmupTask.IsCompleted))
+                {
+                    return;
+                }
+
+                // Baseline process CPU counters off the UI thread so the first render can complete quickly.
+                _cpuBaselineWarmupTask = Task.Run(() =>
+                {
+                    Process[] processes;
+                    try
+                    {
+                        processes = Process.GetProcesses();
+                    }
+                    catch
+                    {
+                        return;
+                    }
+
+                    DateTime sampleTime = DateTime.UtcNow;
+                    Dictionary<int, ProcessSnapshot> snapshots = new Dictionary<int, ProcessSnapshot>(processes.Length);
+
+                    foreach (Process process in processes)
+                    {
+                        try
+                        {
+                            snapshots[process.Id] = new ProcessSnapshot
+                            {
+                                CpuTime = process.TotalProcessorTime,
+                                WallTime = sampleTime
+                            };
+                        }
+                        catch
+                        {
+                        }
+                        finally
+                        {
+                            process.Dispose();
+                        }
+                    }
+
+                    lock (_snapshotLock)
+                    {
+                        _prevData = snapshots;
+                    }
+                });
+            }
+        }
+
+        private static int ResolveGroupRootPid(int pid, Dictionary<int, ProcessTreeNode> treeNodes, Dictionary<int, int> rootCache)
+        {
+            int cachedRoot;
+            if (rootCache.TryGetValue(pid, out cachedRoot))
+            {
+                return cachedRoot;
+            }
+
+            int current = pid;
+            List<int> visited = new List<int>();
+            HashSet<int> seen = new HashSet<int>();
+
+            while (seen.Add(current))
+            {
+                visited.Add(current);
+
+                ProcessTreeNode node;
+                ProcessTreeNode parentNode;
+                if (!treeNodes.TryGetValue(current, out node) ||
+                    node.ParentPid <= 0 ||
+                    !treeNodes.TryGetValue(node.ParentPid, out parentNode) ||
+                    IsLauncherProcess(parentNode.Name))
+                {
+                    break;
+                }
+
+                current = node.ParentPid;
+            }
+
+            foreach (int visitedPid in visited)
+            {
+                rootCache[visitedPid] = current;
+            }
+
+            return current;
+        }
+
+        private static bool IsLauncherProcess(string processName)
+        {
+            return !string.IsNullOrWhiteSpace(processName) && LauncherProcessNames.Contains(processName);
+        }
+
+        private static string GetTreeNodeName(int pid, Dictionary<int, ProcessTreeNode> treeNodes, string fallbackName)
+        {
+            ProcessTreeNode node;
+            if (treeNodes.TryGetValue(pid, out node) && !string.IsNullOrWhiteSpace(node.Name))
+            {
+                return node.Name;
+            }
+
+            return fallbackName;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, EntryPoint = "Process32FirstW", SetLastError = true)]
+        private static extern bool Process32FirstW(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, EntryPoint = "Process32NextW", SetLastError = true)]
+        private static extern bool Process32NextW(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool CloseHandle(IntPtr hObject);
+
+        public ObservableCollection<ProcessGroupEntry> TopProcesses { get; private set; }
     }
 }

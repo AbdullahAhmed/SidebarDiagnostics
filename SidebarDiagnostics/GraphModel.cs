@@ -167,7 +167,7 @@ namespace SidebarDiagnostics.Models
 
             iMetric _metric = (iMetric)sender;
 
-            if (_data == null || !_data.ContainsKey(_metric))
+            if (_data == null || !_data.TryGetValue(_metric, out ObservableCollection<MetricRecord> _mData))
             {
                 _metric.PropertyChanged -= Metric_PropertyChanged;
                 return;
@@ -177,11 +177,9 @@ namespace SidebarDiagnostics.Models
 
             try
             {
-                ObservableCollection<MetricRecord> _mData = _data[_metric];
-
-                foreach (MetricRecord _record in _mData.Where(r => (_now - r.Recorded).TotalSeconds > Duration).ToArray())
+                while (_mData.Count > 0 && (_now - _mData[0].Recorded).TotalSeconds > Duration)
                 {
-                    _mData.Remove(_record);
+                    _mData.RemoveAt(0);
                 }
 
                 _mData.Add(new MetricRecord(_metric.nValue, _now));
