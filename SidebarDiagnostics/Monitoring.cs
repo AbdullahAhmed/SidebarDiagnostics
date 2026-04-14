@@ -667,33 +667,19 @@ namespace SidebarDiagnostics.Monitoring
 
             if (metrics.IsEnabled(MetricKey.CPUTemp) || _cpuTempBarEnabled)
             {
-                ISensor _tempSensor = null;
+                ISensor[] _tempSensors = GetCpuTemperatureSensors(board);
 
-                _tempSensor = _hardware.Sensors.Where(s => s.SensorType == SensorType.Temperature && s.Name.Contains("CCDs Max (Tdie)")).FirstOrDefault(); // Check for AMD core chiplet dies (CCDs)
-
-                if (board != null && _tempSensor == null)
-                {
-                    _tempSensor = board.Sensors.Where(s => s.SensorType == SensorType.Temperature && s.Name.Contains("CPU")).FirstOrDefault();
-                }
-
-                if (_tempSensor == null)
-                {
-                    _tempSensor =
-                        _hardware.Sensors.Where(s => s.SensorType == SensorType.Temperature && (s.Name == "CPU Package" || s.Name.Contains("Tdie"))).FirstOrDefault() ??
-                        _hardware.Sensors.Where(s => s.SensorType == SensorType.Temperature).FirstOrDefault();
-                }
-
-                if (_tempSensor != null)
+                if (_tempSensors.Length > 0)
                 {
                     if (metrics.IsEnabled(MetricKey.CPUTemp))
                     {
-                        _sensorList.Add(new OHMMetric(_tempSensor, MetricKey.CPUTemp, DataType.Celcius, null, roundAll, tempAlert, (useFahrenheit ? CelciusToFahrenheit.Instance : null)));
+                        _sensorList.Add(new OHMMetric(_tempSensors, MetricKey.CPUTemp, DataType.Celcius, null, roundAll, tempAlert, (useFahrenheit ? CelciusToFahrenheit.Instance : null), IsValidCpuTemperatureSensorValue));
                     }
 
                     if (_cpuTempBarEnabled)
                     {
                         // Always Celsius (no converter) so value maps directly to 0-100°C scale
-                        _tempBarMetric = new OHMMetric(_tempSensor, MetricKey.CPUTempBar, DataType.Celcius, null, roundAll, tempAlert);
+                        _tempBarMetric = new OHMMetric(_tempSensors, MetricKey.CPUTempBar, DataType.Celcius, null, roundAll, tempAlert, null, IsValidCpuTemperatureSensorValue);
                         ShowTempBar = true;
                     }
                 }
@@ -991,6 +977,54 @@ namespace SidebarDiagnostics.Monitoring
             _vramLoadBarMetric?.Update();
 
             base.Update();
+        }
+
+        private ISensor[] GetCpuTemperatureSensors(IHardware board)
+        {
+            List<ISensor> sensors = new List<ISensor>();
+
+            AddCpuTemperatureSensors(sensors, _hardware.Sensors.Where(s => s.SensorType == SensorType.Temperature && s.Name.Contains("CCDs Max (Tdie)")));
+
+            if (board != null)
+            {
+                AddCpuTemperatureSensors(sensors, board.Sensors.Where(s => s.SensorType == SensorType.Temperature && s.Name.Contains("CPU")));
+            }
+
+            AddCpuTemperatureSensors(sensors, _hardware.Sensors.Where(s => s.SensorType == SensorType.Temperature && (s.Name == "CPU Package" || s.Name.Contains("Tdie"))));
+            AddCpuTemperatureSensors(sensors, _hardware.Sensors.Where(s => s.SensorType == SensorType.Temperature));
+
+            return sensors.ToArray();
+        }
+
+        private static void AddCpuTemperatureSensors(List<ISensor> sensors, IEnumerable<ISensor> candidates)
+        {
+            foreach (ISensor sensor in candidates)
+            {
+                if (sensor == null || sensors.Any(s => s.Identifier.ToString() == sensor.Identifier.ToString()))
+                {
+                    continue;
+                }
+
+                sensors.Add(sensor);
+            }
+        }
+
+        private static bool IsValidCpuTemperatureSensorValue(ISensor sensor)
+        {
+            if (sensor == null || !sensor.Value.HasValue)
+            {
+                return false;
+            }
+
+            double value = sensor.Value.Value;
+
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return false;
+            }
+
+            // A CPU temperature at or below 0 C is a dead sensor on normal desktop hardware.
+            return value > 0d;
         }
 
         private bool _showLoadBar { get; set; }
@@ -1756,6 +1790,8 @@ namespace SidebarDiagnostics.Monitoring
 
         string Text { get; }
 
+        bool HasValue { get; }
+
         bool IsAlert { get; }
 
         bool IsNumeric { get; }
@@ -1846,6 +1882,7 @@ namespace SidebarDiagnostics.Monitoring
             }
 
             Value = _val;
+            HasValue = true;
 
             if (_alertValue > 0 && _alertValue <= nValue)
             {
@@ -1864,6 +1901,20 @@ namespace SidebarDiagnostics.Monitoring
                 _val.Round(_round),
                 Append
                 );
+        }
+
+        protected void SetUnavailable(string text = "")
+        {
+            Value = 0;
+            nValue = 0;
+            HasValue = false;
+
+            if (IsAlert)
+            {
+                IsAlert = false;
+            }
+
+            Text = text;
         }
 
         public void NotifyPropertyChanged(string propertyName)
@@ -2044,6 +2095,27 @@ namespace SidebarDiagnostics.Monitoring
             }
         }
 
+        private bool _hasValue { get; set; }
+
+        public bool HasValue
+        {
+            get
+            {
+                return _hasValue;
+            }
+            protected set
+            {
+                if (_hasValue == value)
+                {
+                    return;
+                }
+
+                _hasValue = value;
+
+                NotifyPropertyChanged("HasValue");
+            }
+        }
+
         private bool _isAlert { get; set; }
 
         public bool IsAlert
@@ -2119,9 +2191,16 @@ namespace SidebarDiagnostics.Monitoring
 
     public class OHMMetric : BaseMetric
     {
-        public OHMMetric(ISensor sensor, MetricKey key, DataType dataType, string label = null, bool round = false, double alertValue = 0, iConverter converter = null) : base(key, dataType, label, round, alertValue, converter)
+        public OHMMetric(ISensor sensor, MetricKey key, DataType dataType, string label = null, bool round = false, double alertValue = 0, iConverter converter = null, Func<ISensor, bool> valueValidator = null)
+            : this(sensor == null ? Enumerable.Empty<ISensor>() : new[] { sensor }, key, dataType, label, round, alertValue, converter, valueValidator)
         {
-            _sensor = sensor;
+        }
+
+        public OHMMetric(IEnumerable<ISensor> sensors, MetricKey key, DataType dataType, string label = null, bool round = false, double alertValue = 0, iConverter converter = null, Func<ISensor, bool> valueValidator = null)
+            : base(key, dataType, label, round, alertValue, converter)
+        {
+            _sensors = sensors == null ? new ISensor[0] : sensors.Where(s => s != null).ToArray();
+            _valueValidator = valueValidator;
         }
 
         public new void Dispose()
@@ -2138,7 +2217,8 @@ namespace SidebarDiagnostics.Monitoring
             {
                 if (disposing)
                 {
-                    _sensor = null;
+                    _sensors = null;
+                    _valueValidator = null;
                 }
 
                 _disposed = true;
@@ -2152,17 +2232,38 @@ namespace SidebarDiagnostics.Monitoring
 
         public override void Update()
         {
-            if (_sensor.Value.HasValue)
+            ISensor sensor = _sensors.FirstOrDefault(HasUsableValue);
+
+            if (sensor != null)
             {
-                Update(_sensor.Value.Value);
+                Update(sensor.Value.Value);
             }
             else
             {
-                Text = "No Value";
+                SetUnavailable();
             }
         }
 
-        private ISensor _sensor { get; set; }
+        private bool HasUsableValue(ISensor sensor)
+        {
+            if (sensor == null || !sensor.Value.HasValue)
+            {
+                return false;
+            }
+
+            double value = sensor.Value.Value;
+
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return false;
+            }
+
+            return _valueValidator == null || _valueValidator(sensor);
+        }
+
+        private ISensor[] _sensors { get; set; }
+
+        private Func<ISensor, bool> _valueValidator { get; set; }
 
         private bool _disposed { get; set; } = false;
     }
@@ -2212,7 +2313,7 @@ namespace SidebarDiagnostics.Monitoring
             }
             else
             {
-                Text = "No Value";
+                SetUnavailable();
             }
         }
 
@@ -2227,12 +2328,13 @@ namespace SidebarDiagnostics.Monitoring
     {
         public IPMetric(string ipAddress, MetricKey key, DataType dataType, string label = null, bool round = false, double alertValue = 0, iConverter converter = null) : base(key, dataType, label, round, alertValue, converter)
         {
-            Text = ipAddress;
+            SetText(ipAddress);
         }
 
         public void SetText(string ipAddress)
         {
             Text = ipAddress;
+            HasValue = !string.IsNullOrWhiteSpace(ipAddress) && !string.Equals(ipAddress, "Unavailable", StringComparison.OrdinalIgnoreCase);
         }
 
         public new void Dispose()
@@ -2319,6 +2421,7 @@ namespace SidebarDiagnostics.Monitoring
 
             // Bar value: 0-100% of 1Gbps (125,000,000 bytes/sec = 1Gbps)
             Value = Math.Min(100d, raw / 125_000_000d * 100d);
+            HasValue = true;
 
             // Display text: formatted bandwidth using the display converter
             double displayVal = raw;
