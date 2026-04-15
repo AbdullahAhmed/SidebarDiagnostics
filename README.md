@@ -1,54 +1,130 @@
-<h1><img src="https://cdn.rawgit.com/ArcadeRenegade/SidebarDiagnostics/master/sidebar.ico" width="64" height="64" /> Sidebar Diagnostics</h1>
+# Sidebar Diagnostics
 
-A simple sidebar for Windows desktop that displays hardware diagnostic information.
+Sidebar Diagnostics is a lightweight Windows desktop sidebar for live system monitoring. This fork has moved well beyond the original upstream README and now focuses on a compact, always-visible diagnostics view with a faster process monitor, grouped app view, richer process details, and release installers.
 
-### Download
+## Download
 
-Go to the <a href="https://github.com/ArcadeRenegade/SidebarDiagnostics/releases">releases tab</a>.
+Installers and packaged builds are published in this repository's releases:
 
-### Features
-* Monitors CPU, RAM, GPU, network, and logical drives.
-* Create graphs for all metrics.
-* Allows for lots of customization.
-* Allows alerts for various values.
-* Allows binding hotkeys.
-* Supports monitors of all DPI types.
-* Has a clock at the top.
+- [Latest release](https://github.com/AbdullahAhmed/SidebarDiagnostics/releases/latest)
+- [All releases](https://github.com/AbdullahAhmed/SidebarDiagnostics/releases)
 
-### Important
+Current release assets include:
 
-If you are changing your screen's DPI settings, <a href="https://github.com/ArcadeRenegade/SidebarDiagnostics/wiki/DPI-Settings">view this page!</a>
+- `Setup.exe`
+- `Setup.msi`
+- Squirrel package files for update/install distribution
 
-### Author Note
+## What It Monitors
 
-This software will always be free on GitHub. If you really like it please consider donating. I'd appreciate it!
-Thanks.
+- Clock and date
+- CPU load and supported CPU sensors
+- RAM usage
+- GPU load, VRAM usage, and supported GPU sensors
+- Logical drives, capacity, read, and write throughput
+- Network throughput and local IP
+- Top processes with app-style grouping
 
-https://www.paypal.me/arcaderenegade
+## Current Highlights
 
-### Supported OS
+- Compact sidebar UI intended for always-on desktop use
+- Grouped process monitor that rolls child processes into app-level rows
+- Expandable process groups with per-PID actions
+- Rich process tooltips with on-demand details such as full name, CPU, memory, disk, GPU, network, PID, and related process stats
+- Performance-focused process list updates to reduce UI churn and allocations
+- Faster startup by deferring non-critical work until after the window is visible
+- Graph window for supported metrics
+- Customization, alerts, and hotkeys
+- DPI-aware WPF desktop UI
+- Release installer packaging via Squirrel
 
-* Windows 10
-* Windows 8.1
-* Windows 8
-* Windows 7
+## Process Monitor Behavior
 
-### License
+The Processes section is intentionally closer to Task Manager than a raw PID list.
 
-GNU GENERAL PUBLIC LICENSE
+- App groups are shown as a single row with aggregated CPU and RAM
+- Child processes can be expanded when you need per-process visibility
+- Grouped rows are meant for app-level visibility and tree actions
+- Detailed per-process information loads only when you hover a process tooltip to keep steady-state overhead low
 
-Please provide a link to this GitHub repository if reuploading. Thank you.
+## Requirements
 
-### Info
+- Windows
+- .NET Framework 4.7.2
+- Administrator privileges
 
-Written in C# .NET WPF.
+The app currently requests elevation on launch. Running elevated is important for several monitor and process-management features.
 
-Currently compiled in <a href="https://dotnet.microsoft.com/download/dotnet-framework/thank-you/net472-web-installer">.NET 4.7.2</a>.
+## Notes On Hardware Sensors
 
-You will need to run it as administrator.
+Sensor availability depends on the machine, drivers, Windows security settings, and what LibreHardwareMonitor can access on that hardware.
 
-Data provided by <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor">Libre Hardware Monitor</a>. Please thank the library's contributors for their support!
+- If a metric is unavailable, the sidebar hides it instead of showing a fake or empty value
+- CPU and GPU sensor coverage can vary across vendors and chip generations
+- Data is sourced primarily from LibreHardwareMonitor, with some process detail gathered through Windows APIs and WMI
 
-<img src="http://i.imgur.com/70LkdwO.png" />
+## Build From Source
 
-<img src="http://i.imgur.com/mkrO6W6.png" />
+### Prerequisites
+
+- Visual Studio with .NET desktop development support, or MSBuild for .NET Framework projects
+- NuGet package restore enabled
+- Git submodules available
+
+### Clone
+
+```powershell
+git clone --recurse-submodules https://github.com/AbdullahAhmed/SidebarDiagnostics.git
+cd SidebarDiagnostics
+```
+
+If you already cloned without submodules:
+
+```powershell
+git submodule update --init --recursive
+```
+
+### Build
+
+From Visual Studio:
+
+- Open `SidebarDiagnostics.sln`
+- Build the `SidebarDiagnostics` project
+
+From MSBuild:
+
+```powershell
+& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" ".\SidebarDiagnostics\SidebarDiagnostics.csproj" /t:Build /p:Configuration=Release /p:Platform=AnyCPU /m
+```
+
+Primary output:
+
+- `SidebarDiagnostics\bin\Release\SidebarDiagnostics.exe`
+
+## Installer Packaging
+
+This repo uses Squirrel for Windows packaging. Release builds can be wrapped into installer artifacts such as:
+
+- `Setup.exe`
+- `Setup.msi`
+- `RELEASES`
+- full `.nupkg` packages
+
+Installer artifacts are intended for releases, not day-to-day local debugging.
+
+## Technology
+
+- C#
+- WPF
+- .NET Framework 4.7.2
+- LibreHardwareMonitor
+- OxyPlot
+- Squirrel.Windows
+
+## Upstream
+
+This project began from the original Sidebar Diagnostics project and has since diverged with substantial UI, process-monitoring, packaging, and performance changes.
+
+## License
+
+GNU General Public License v3.0
