@@ -236,7 +236,16 @@
                             <DataTemplate>
                                 <Border Style="{StaticResource MonitorDetailsBorder}">
                                     <StackPanel Style="{StaticResource VerticalPanel}">
-                                        <ListView ItemsSource="{Binding Path=HardwareOC, Mode=OneWay}" dd:DragDrop.IsDragSource="True" dd:DragDrop.IsDropTarget="True" ItemContainerStyle="{StaticResource MonitorHardwareItem}" Style="{StaticResource HardwareGrid}">
+                                        <ListView ItemsSource="{Binding Path=HardwareOC, Mode=OneWay}" dd:DragDrop.IsDragSource="True" dd:DragDrop.IsDropTarget="True" ItemContainerStyle="{StaticResource MonitorHardwareItem}">
+                                            <ListView.Style>
+                                                <Style TargetType="{x:Type ListView}" BasedOn="{StaticResource HardwareGrid}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Path=HardwareOC.Count, Mode=OneWay}" Value="0">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ListView.Style>
                                             <ListView.View>
                                                 <GridView AllowsColumnReorder="False">
                                                     <GridViewColumn Header="{x:Static frame:Resources.SettingsHardwareColumn1}" HeaderContainerStyle="{StaticResource MonitorHardwareHeaderCenter}">
@@ -258,6 +267,15 @@
                                         </ListView>
 
                                         <DockPanel LastChildFill="True" Margin="0,15,0,0">
+                                            <DockPanel.Style>
+                                                <Style TargetType="{x:Type DockPanel}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Path=Metrics.Length, Mode=OneWay}" Value="0">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </DockPanel.Style>
                                             <Label DockPanel.Dock="Left" Content="{x:Static frame:Resources.SettingsMetrics}" Margin="0,0,10,0" />
                                             <xctk:CheckComboBox ItemsSource="{Binding Path=Metrics, Mode=OneWay}" DisplayMemberPath="Name" SelectedMemberPath="Enabled" Delimiter=", " ToolTip="{x:Static frame:Resources.SettingsMetricsTooltip}" />
                                         </DockPanel>

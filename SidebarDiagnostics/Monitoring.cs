@@ -181,6 +181,7 @@ namespace SidebarDiagnostics.Monitoring
                 case MonitorType.Process:
                     return ProcessPanel(
                         config.Type,
+                        config.Metrics,
                         config.Params
                         );
 
@@ -216,15 +217,18 @@ namespace SidebarDiagnostics.Monitoring
                 );
         }
 
-        private MonitorPanel ProcessPanel(MonitorType type, ConfigParam[] parameters)
+        private MonitorPanel ProcessPanel(MonitorType type, MetricConfig[] metrics, ConfigParam[] parameters)
         {
             int count = parameters.GetValue<int>(ParamKey.ProcessCount);
             bool sortByCpu = parameters.GetValue<bool>(ParamKey.ProcessSortByCpu);
+            bool showCpu = metrics.IsEnabled(MetricKey.ProcessCpu);
+            bool showRam = metrics.IsEnabled(MetricKey.ProcessRam);
+            bool showClose = metrics.IsEnabled(MetricKey.ProcessClose);
 
             return new MonitorPanel(
                 type.GetDescription(),
                 "M 19,28L 57,28L 57,50L 19,50L 19,28 Z M 21,30L 21,48L 55,48L 55,30L 21,30 Z M 23,32L 35,32L 35,34L 23,34L 23,32 Z M 23,36L 45,36L 45,38L 23,38L 23,36 Z M 23,40L 40,40L 40,42L 23,42L 23,40 Z M 23,44L 35,44L 35,46L 23,46L 23,44 Z M 47,32L 53,32L 53,46L 47,46L 47,32 Z M 49,34L 51,34L 51,44L 49,44L 49,34 Z",
-                new ProcessMonitor(count, sortByCpu)
+                new ProcessMonitor(count, sortByCpu, showCpu, showRam, showClose)
                 );
         }
 
@@ -2806,7 +2810,12 @@ namespace SidebarDiagnostics.Monitoring
                         Enabled = false,
                         Order = 0,
                         Hardware = new HardwareConfig[0],
-                        Metrics = new MetricConfig[0],
+                        Metrics = new MetricConfig[3]
+                        {
+                            new MetricConfig(MetricKey.ProcessCpu, true),
+                            new MetricConfig(MetricKey.ProcessRam, true),
+                            new MetricConfig(MetricKey.ProcessClose, true)
+                        },
                         Params = new ConfigParam[2]
                         {
                             ConfigParam.Defaults.ProcessCount,
@@ -3051,7 +3060,11 @@ namespace SidebarDiagnostics.Monitoring
         CPUTempBar = 33,
         GPUTempBar = 34,
 
-        VRAMLoadBar = 35
+        VRAMLoadBar = 35,
+
+        ProcessCpu = 36,
+        ProcessRam = 37,
+        ProcessClose = 38
     }
 
     [JsonObject(MemberSerialization.OptIn)]
@@ -3182,6 +3195,12 @@ namespace SidebarDiagnostics.Monitoring
                     case ParamKey.UseGHz:
                         return Resources.SettingsUseGHz;
 
+                    case ParamKey.ProcessCount:
+                        return "Number of Processes";
+
+                    case ParamKey.ProcessSortByCpu:
+                        return "Sort by CPU";
+
                     default:
                         return "Unknown";
                 }
@@ -3235,6 +3254,12 @@ namespace SidebarDiagnostics.Monitoring
 
                     case ParamKey.UseGHz:
                         return Resources.SettingsUseGHzTooltip;
+
+                    case ParamKey.ProcessCount:
+                        return "Controls how many app groups are shown in the Processes section.";
+
+                    case ParamKey.ProcessSortByCpu:
+                        return "When enabled, sorts process groups by CPU usage. When disabled, sorts by RAM usage.";
 
                     default:
                         return "Unknown";
@@ -3893,6 +3918,15 @@ namespace SidebarDiagnostics.Monitoring
                 case MetricKey.VRAMLoadBar:
                     return Resources.VRAMLoadBar;
 
+                case MetricKey.ProcessCpu:
+                    return Resources.CPU;
+
+                case MetricKey.ProcessRam:
+                    return Resources.RAM;
+
+                case MetricKey.ProcessClose:
+                    return Resources.ButtonClose;
+
                 default:
                     return "Unknown";
             }
@@ -4009,6 +4043,15 @@ namespace SidebarDiagnostics.Monitoring
 
                 case MetricKey.VRAMLoadBar:
                     return Resources.VRAMLoadBarLabel;
+
+                case MetricKey.ProcessCpu:
+                    return Resources.CPU;
+
+                case MetricKey.ProcessRam:
+                    return Resources.RAM;
+
+                case MetricKey.ProcessClose:
+                    return Resources.ButtonClose;
 
                 default:
                     return "Unknown";
@@ -4288,6 +4331,13 @@ namespace SidebarDiagnostics.Monitoring
         }
 
         public RelayCommand KillCommand { get; }
+
+        private bool _showClose = true;
+        public bool ShowClose
+        {
+            get { return _showClose; }
+            set { SetProperty(ref _showClose, value, "ShowClose"); }
+        }
 
         public async Task RefreshToolTipAsync()
         {
@@ -5087,6 +5137,20 @@ namespace SidebarDiagnostics.Monitoring
             set { SetProperty(ref _ramBarValue, value, "RamBarValue"); }
         }
 
+        private bool _showCpu = true;
+        public bool ShowCpu
+        {
+            get { return _showCpu; }
+            set { SetProperty(ref _showCpu, value, "ShowCpu"); }
+        }
+
+        private bool _showRam = true;
+        public bool ShowRam
+        {
+            get { return _showRam; }
+            set { SetProperty(ref _showRam, value, "ShowRam"); }
+        }
+
         private int _processCount;
         public int ProcessCount
         {
@@ -5149,6 +5213,13 @@ namespace SidebarDiagnostics.Monitoring
         {
             get { return _canEndTree; }
             set { SetProperty(ref _canEndTree, value, "CanEndTree"); }
+        }
+
+        private bool _showClose = true;
+        public bool ShowClose
+        {
+            get { return _showClose; }
+            set { SetProperty(ref _showClose, value, "ShowClose"); }
         }
 
         private bool SetProperty<T>(ref T field, T value, string propertyName)
@@ -5271,6 +5342,9 @@ namespace SidebarDiagnostics.Monitoring
         private readonly int _count;
         private readonly bool _sortByCpu;
         private readonly int _processorCount;
+        private readonly bool _showCpu;
+        private readonly bool _showRam;
+        private readonly bool _showClose;
         private readonly Dictionary<int, string> _groupDisplayNameCache = new Dictionary<int, string>();
         private readonly Dictionary<int, bool> _groupCanEndTreeCache = new Dictionary<int, bool>();
         private readonly object _snapshotLock = new object();
@@ -5280,13 +5354,17 @@ namespace SidebarDiagnostics.Monitoring
         private DateTime _nextTreeSnapshotUtc = DateTime.MinValue;
         private Task _cpuBaselineWarmupTask;
 
-        public ProcessMonitor(int count, bool sortByCpu) : base("process", "Processes", false)
+        public ProcessMonitor(int count, bool sortByCpu, bool showCpu, bool showRam, bool showClose) : base("process", "Processes", false)
         {
             _count = count;
             _sortByCpu = sortByCpu;
             _processorCount = Math.Max(1, Environment.ProcessorCount);
+            _showCpu = showCpu;
+            _showRam = showRam;
+            _showClose = showClose;
             Metrics = new iMetric[0];
             TopProcesses = new ObservableCollection<ProcessGroupEntry>();
+            WarmCpuBaseline();
         }
 
         public override void Update()
@@ -5574,6 +5652,9 @@ namespace SidebarDiagnostics.Monitoring
             entry.RamText = FormatRamText(info.RamMb);
             entry.CpuBarValue = NormalizeBarValue(info.Cpu, maxVisibleCpu);
             entry.RamBarValue = NormalizeBarValue(info.RamMb, maxVisibleRamMb);
+            entry.ShowCpu = _showCpu;
+            entry.ShowRam = _showRam;
+            entry.ShowClose = _showClose;
             entry.ProcessCount = info.Children.Count;
             entry.CanEndTree = ResolveGroupCanEndTree(info.RootPid, info.RootName);
 
@@ -5599,12 +5680,12 @@ namespace SidebarDiagnostics.Monitoring
                     }
                     else
                     {
-                        childEntry = CreateChildEntry(childInfo, groupDisplayName);
+                        childEntry = CreateChildEntry(childInfo, groupDisplayName, _showClose);
                         entry.Children.Insert(i, childEntry);
                     }
                 }
 
-                UpdateChildEntry(childEntry, childInfo, groupDisplayName);
+                UpdateChildEntry(childEntry, childInfo, groupDisplayName, _showClose);
             }
 
             while (entry.Children.Count > info.Children.Count)
@@ -5613,10 +5694,10 @@ namespace SidebarDiagnostics.Monitoring
             }
         }
 
-        private static ProcessEntry CreateChildEntry(ProcessInfo info, string groupDisplayName)
+        private static ProcessEntry CreateChildEntry(ProcessInfo info, string groupDisplayName, bool showClose)
         {
             int capturedPid = info.Pid;
-            return new ProcessEntry(
+            ProcessEntry entry = new ProcessEntry(
                 info.Pid,
                 info.Name,
                 BuildChildRowLabel(groupDisplayName, info),
@@ -5624,14 +5705,17 @@ namespace SidebarDiagnostics.Monitoring
                 FormatRamText(info.RamMb),
                 new RelayCommand(() => KillProcess(capturedPid))
             );
+            entry.ShowClose = showClose;
+            return entry;
         }
 
-        private static void UpdateChildEntry(ProcessEntry entry, ProcessInfo info, string groupDisplayName)
+        private static void UpdateChildEntry(ProcessEntry entry, ProcessInfo info, string groupDisplayName, bool showClose)
         {
             entry.Name = info.Name;
             entry.SetRowLabel(BuildChildRowLabel(groupDisplayName, info));
             entry.CpuText = FormatCpuText(info.Cpu);
             entry.RamText = FormatRamText(info.RamMb);
+            entry.ShowClose = showClose;
         }
 
         private static string BuildChildRowLabel(string groupDisplayName, ProcessInfo info)

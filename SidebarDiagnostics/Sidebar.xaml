@@ -469,7 +469,17 @@
                                                                     </Grid.ColumnDefinitions>
 
                                                                     <TextBlock Grid.Column="0" Text="{Binding RowLabel, Mode=OneWay}" Style="{StaticResource ProcessChildText}" VerticalAlignment="Center" />
-                                                                    <Button Grid.Column="1" Command="{Binding KillCommand}" Style="{StaticResource KillButton}" ToolTip="Kill process" />
+                                                                    <Button Grid.Column="1" Command="{Binding KillCommand}" ToolTip="Kill process">
+                                                                        <Button.Style>
+                                                                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource KillButton}">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding ShowClose, Mode=OneWay}" Value="False">
+                                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Button.Style>
+                                                                    </Button>
                                                                 </Grid>
                                                             </DataTemplate>
                                                         </ItemsControl.Resources>
@@ -499,10 +509,32 @@
                                                                             <TextBlock Text="{Binding DisplayName, Mode=OneWay}" Style="{StaticResource ProcessHeaderText}" VerticalAlignment="Center" />
                                                                             <TextBlock Text="{Binding CountText, Mode=OneWay}" Style="{StaticResource ProcessCountText}" VerticalAlignment="Center" />
                                                                         </StackPanel>
-                                                                        <Button Grid.Column="2" Command="{Binding KillTreeCommand}" Style="{StaticResource EndTreeButton}" ToolTip="End app tree" />
+                                                                        <Button Grid.Column="2" Command="{Binding KillTreeCommand}" ToolTip="End app tree">
+                                                                            <Button.Style>
+                                                                                <Style TargetType="{x:Type Button}" BasedOn="{StaticResource EndTreeButton}">
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding ShowClose, Mode=OneWay}" Value="False">
+                                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding CanEndTree, Mode=OneWay}" Value="False">
+                                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Button.Style>
+                                                                        </Button>
                                                                     </Grid>
 
                                                                     <Grid Margin="16,0,0,0">
+                                                                        <Grid.Style>
+                                                                            <Style TargetType="{x:Type Grid}">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding ShowCpu, Mode=OneWay}" Value="False">
+                                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Grid.Style>
                                                                         <Grid.ColumnDefinitions>
                                                                             <ColumnDefinition Width="*" />
                                                                             <ColumnDefinition Width="Auto" />
@@ -513,6 +545,15 @@
                                                                     </Grid>
 
                                                                     <Grid Margin="16,1,0,0">
+                                                                        <Grid.Style>
+                                                                            <Style TargetType="{x:Type Grid}">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding ShowRam, Mode=OneWay}" Value="False">
+                                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Grid.Style>
                                                                         <Grid.ColumnDefinitions>
                                                                             <ColumnDefinition Width="*" />
                                                                             <ColumnDefinition Width="Auto" />
