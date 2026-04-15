@@ -2,6 +2,11 @@
 
 Sidebar Diagnostics is a lightweight Windows desktop sidebar for live system monitoring. This fork has moved well beyond the original upstream README and now focuses on a compact, always-visible diagnostics view with a faster process monitor, grouped app view, richer process details, and release installers.
 
+## Screenshot
+<img width="1799" height="1107" alt="image" src="https://github.com/user-attachments/assets/7381df28-f95c-44fd-81ad-85ceec643500" />
+
+
+
 ## Download
 
 Installers and packaged builds are published in this repository's releases:
