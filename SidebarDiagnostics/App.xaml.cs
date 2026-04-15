@@ -4,10 +4,12 @@ using System.Configuration;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using Newtonsoft.Json.Linq;
 using Squirrel;
 using Hardcodet.Wpf.TaskbarNotification;
 using SidebarDiagnostics.Monitoring;
@@ -166,53 +168,159 @@ namespace SidebarDiagnostics
 
         private async Task<string> SquirrelUpdate(bool showInfo)
         {
-            try
+            Exception _lastError = null;
+
+            foreach (string _releaseUrl in await GetUpdateFeedUrlsAsync())
             {
-                using (UpdateManager _manager = new UpdateManager(ConfigurationManager.AppSettings["CurrentReleaseURL"]))
+                try
                 {
-                    UpdateInfo _update = await _manager.CheckForUpdate();
-
-                    if (_update.ReleasesToApply.Any())
+                    using (UpdateManager _manager = new UpdateManager(_releaseUrl))
                     {
-                        Version _newVersion = _update.ReleasesToApply.OrderByDescending(r => r.Version).First().Version.Version;
+                        UpdateInfo _update = await _manager.CheckForUpdate();
 
-                        Update _updateWindow = new Update();
-                        _updateWindow.Show();
+                        if (_update.ReleasesToApply.Any())
+                        {
+                            Version _newVersion = _update.ReleasesToApply.OrderByDescending(r => r.Version).First().Version.Version;
 
-                        await _manager.UpdateApp((p) => _updateWindow.SetProgress(p));
+                            Update _updateWindow = new Update();
+                            _updateWindow.Show();
 
-                        _updateWindow.Close();
+                            await _manager.UpdateApp((p) => _updateWindow.SetProgress(p));
 
-                        return Utilities.Paths.Exe(_newVersion);
-                    }
-                    else if (showInfo)
-                    {
-                        MessageBox.Show(Framework.Resources.UpdateSuccessText, Framework.Resources.AppName, MessageBoxButton.OK, MessageBoxImage.Information, MessageBoxResult.OK, MessageBoxOptions.DefaultDesktopOnly);
+                            _updateWindow.Close();
+
+                            return Utilities.Paths.Exe(_newVersion);
+                        }
+                        else if (showInfo)
+                        {
+                            MessageBox.Show(Framework.Resources.UpdateSuccessText, Framework.Resources.AppName, MessageBoxButton.OK, MessageBoxImage.Information, MessageBoxResult.OK, MessageBoxOptions.DefaultDesktopOnly);
+                        }
+
+                        return null;
                     }
                 }
+                catch (WebException e)
+                {
+                    _lastError = e;
+                }
+                catch (HttpRequestException e)
+                {
+                    _lastError = e;
+                }
+                catch (Exception e)
+                {
+                    _lastError = e;
+                }
             }
-            catch (WebException)
+
+            if (_lastError != null)
             {
+                LogUpdateError(_lastError);
+
                 if (showInfo)
                 {
                     MessageBox.Show(Framework.Resources.UpdateErrorText, Framework.Resources.UpdateErrorTitle, MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.OK, MessageBoxOptions.DefaultDesktopOnly);
                 }
             }
-            catch (Exception e)
-            {
-                Framework.Settings.Instance.AutoUpdate = false;
-                Framework.Settings.Instance.Save();
 
+            return null;
+        }
+
+        private async Task<string[]> GetUpdateFeedUrlsAsync()
+        {
+            List<string> _releaseUrls = new List<string>();
+            string _repoSlug = TryGetGitHubRepoSlug(ConfigurationManager.AppSettings["RepoURL"]);
+            string _configuredReleaseUrl = ConfigurationManager.AppSettings["CurrentReleaseURL"];
+            string _legacyReleaseUrl = ConfigurationManager.AppSettings["LegacyReleaseURL"];
+
+            if (!string.IsNullOrWhiteSpace(_repoSlug))
+            {
+                string _latestTag = await TryGetLatestGitHubTagAsync(_repoSlug);
+
+                if (!string.IsNullOrWhiteSpace(_latestTag))
+                {
+                    _releaseUrls.Add(string.Format("https://github.com/{0}/releases/download/{1}", _repoSlug, _latestTag));
+                }
+            }
+
+            AddConfiguredFeedUrl(_releaseUrls, _configuredReleaseUrl);
+            AddConfiguredFeedUrl(_releaseUrls, _legacyReleaseUrl);
+
+            return _releaseUrls
+                .Where(u => !string.IsNullOrWhiteSpace(u))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
+        private static void AddConfiguredFeedUrl(List<string> releaseUrls, string releaseUrl)
+        {
+            if (string.IsNullOrWhiteSpace(releaseUrl))
+            {
+                return;
+            }
+
+            if (releaseUrl.IndexOf("/releases/latest/download", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return;
+            }
+
+            releaseUrls.Add(releaseUrl);
+        }
+
+        private static async Task<string> TryGetLatestGitHubTagAsync(string repoSlug)
+        {
+            try
+            {
+                using (HttpClient _client = new HttpClient())
+                {
+                    _client.DefaultRequestHeaders.UserAgent.ParseAdd("SidebarDiagnostics");
+
+                    string _json = await _client.GetStringAsync(string.Format("https://api.github.com/repos/{0}/releases/latest", repoSlug));
+                    JObject _release = JObject.Parse(_json);
+                    return (string)_release["tag_name"];
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string TryGetGitHubRepoSlug(string repoUrl)
+        {
+            if (string.IsNullOrWhiteSpace(repoUrl))
+            {
+                return null;
+            }
+
+            Uri _uri;
+            if (!Uri.TryCreate(repoUrl, UriKind.Absolute, out _uri))
+            {
+                return null;
+            }
+
+            string[] _segments = _uri.AbsolutePath.Trim('/').Split('/');
+            if (_segments.Length < 2)
+            {
+                return null;
+            }
+
+            return string.Format("{0}/{1}", _segments[0], _segments[1]);
+        }
+
+        private static void LogUpdateError(Exception e)
+        {
+            try
+            {
                 using (EventLog _log = new EventLog("Application"))
                 {
                     _log.Source = Framework.Resources.AppName;
                     _log.WriteEntry(e.ToString(), EventLogEntryType.Error, 100, 1);
                 }
-
-                MessageBox.Show(Framework.Resources.UpdateErrorFatalText, Framework.Resources.UpdateErrorTitle, MessageBoxButton.OK, MessageBoxImage.Error, MessageBoxResult.OK, MessageBoxOptions.DefaultDesktopOnly);
             }
-
-            return null;
+            catch
+            {
+            }
         }
 
         private void CheckSettings()

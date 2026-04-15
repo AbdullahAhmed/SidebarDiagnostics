@@ -3925,7 +3925,7 @@ namespace SidebarDiagnostics.Monitoring
                     return Resources.RAM;
 
                 case MetricKey.ProcessClose:
-                    return Resources.ButtonClose;
+                    return "End App Tree";
 
                 default:
                     return "Unknown";
@@ -4051,7 +4051,7 @@ namespace SidebarDiagnostics.Monitoring
                     return Resources.RAM;
 
                 case MetricKey.ProcessClose:
-                    return Resources.ButtonClose;
+                    return "End App Tree";
 
                 default:
                     return "Unknown";
@@ -5094,6 +5094,13 @@ namespace SidebarDiagnostics.Monitoring
 
         public ObservableCollection<ProcessEntry> Children { get; }
 
+        private ProcessEntry _toolTipEntry;
+        public ProcessEntry ToolTipEntry
+        {
+            get { return _toolTipEntry; }
+            set { SetProperty(ref _toolTipEntry, value, "ToolTipEntry"); }
+        }
+
         private string _displayName;
         public string DisplayName
         {
@@ -5692,6 +5699,8 @@ namespace SidebarDiagnostics.Monitoring
             {
                 entry.Children.RemoveAt(entry.Children.Count - 1);
             }
+
+            entry.ToolTipEntry = entry.Children.FirstOrDefault(child => child.Pid == entry.RootPid) ?? entry.Children.FirstOrDefault();
         }
 
         private static ProcessEntry CreateChildEntry(ProcessInfo info, string groupDisplayName, bool showClose)

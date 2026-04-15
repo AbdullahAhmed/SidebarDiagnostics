@@ -1,5 +1,13 @@
 [
     {
+        "Version":  "3.6.5",
+        "Changes":  [
+                        "Fixed grouped process tooltips so app rows show full process details again.",
+                        "Removed Processes from the graph window monitor list.",
+                        "Improved GitHub release update feed handling and relabeled the process action to End App Tree."
+                    ]
+    },
+    {
         "Version":  "3.6.4",
         "Changes":  [
                         "Updated process monitor settings with real CPU, RAM, and Close toggles.",

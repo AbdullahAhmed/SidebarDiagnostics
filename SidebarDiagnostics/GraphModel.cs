@@ -107,11 +107,13 @@ namespace SidebarDiagnostics.Models
 
         private void BindMonitors(MonitorPanel[] panels)
         {
-            MonitorItems = panels;
+            MonitorItems = panels
+                .Where(p => !string.Equals(p.Title, Resources.Processes, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
 
-            if (panels.Length > 0)
+            if (MonitorItems.Length > 0)
             {
-                Monitor = panels[0];
+                Monitor = MonitorItems[0];
             }
             else
             {

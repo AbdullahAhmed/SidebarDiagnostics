@@ -486,7 +486,52 @@
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate DataType="{x:Type monitor:ProcessGroupEntry}">
                                                                 <StackPanel Style="{StaticResource ProcessGroupPanel}">
-                                                                    <Grid Margin="0,0,0,2">
+                                                                    <Grid Margin="0,0,0,2" ToolTipOpening="ProcessToolTip_Opened" ToolTipService.InitialShowDelay="200" ToolTipService.ShowDuration="60000">
+                                                                        <Grid.ToolTip>
+                                                                            <ToolTip Style="{StaticResource ProcessToolTip}" DataContext="{Binding PlacementTarget.DataContext.ToolTipEntry, RelativeSource={RelativeSource Self}}">
+                                                                                <StackPanel Width="300">
+                                                                                    <TextBlock Text="{Binding ToolTipTitle, Mode=OneWay}" Style="{StaticResource ProcessToolTipHeader}" />
+                                                                                    <TextBlock Text="{Binding ToolTipSubtitle, Mode=OneWay}" Style="{StaticResource ProcessToolTipSubHeader}" />
+                                                                                    <TextBlock Text="{Binding ToolTipPath, Mode=OneWay}" Style="{StaticResource ProcessToolTipFooter}" Margin="0,4,0,0" />
+                                                                                    <Separator Margin="0,8,0,8" />
+
+                                                                                    <Grid>
+                                                                                        <Grid.ColumnDefinitions>
+                                                                                            <ColumnDefinition Width="Auto" />
+                                                                                            <ColumnDefinition Width="*" />
+                                                                                        </Grid.ColumnDefinitions>
+                                                                                        <Grid.RowDefinitions>
+                                                                                            <RowDefinition Height="Auto" />
+                                                                                            <RowDefinition Height="Auto" />
+                                                                                            <RowDefinition Height="Auto" />
+                                                                                            <RowDefinition Height="Auto" />
+                                                                                            <RowDefinition Height="Auto" />
+                                                                                            <RowDefinition Height="Auto" />
+                                                                                        </Grid.RowDefinitions>
+
+                                                                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="CPU" Style="{StaticResource ProcessToolTipLabel}" />
+                                                                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CpuText, Mode=OneWay}" Style="{StaticResource ProcessToolTipValue}" />
+
+                                                                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Memory" Style="{StaticResource ProcessToolTipLabel}" />
+                                                                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ToolTipMemory, Mode=OneWay}" Style="{StaticResource ProcessToolTipValue}" />
+
+                                                                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Disk" Style="{StaticResource ProcessToolTipLabel}" />
+                                                                                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ToolTipDisk, Mode=OneWay}" Style="{StaticResource ProcessToolTipValue}" />
+
+                                                                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="GPU" Style="{StaticResource ProcessToolTipLabel}" />
+                                                                                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ToolTipGpu, Mode=OneWay}" Style="{StaticResource ProcessToolTipValue}" />
+
+                                                                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Network" Style="{StaticResource ProcessToolTipLabel}" />
+                                                                                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding ToolTipNetwork, Mode=OneWay}" Style="{StaticResource ProcessToolTipValue}" />
+
+                                                                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Other" Style="{StaticResource ProcessToolTipLabel}" />
+                                                                                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding ToolTipOther, Mode=OneWay}" Style="{StaticResource ProcessToolTipValue}" />
+                                                                                    </Grid>
+
+                                                                                    <TextBlock Text="{Binding ToolTipStatus, Mode=OneWay}" Style="{StaticResource ProcessToolTipFooter}" />
+                                                                                </StackPanel>
+                                                                            </ToolTip>
+                                                                        </Grid.ToolTip>
                                                                         <Grid.ColumnDefinitions>
                                                                             <ColumnDefinition Width="18" />
                                                                             <ColumnDefinition Width="*" />

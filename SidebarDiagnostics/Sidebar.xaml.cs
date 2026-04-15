@@ -234,7 +234,19 @@ namespace SidebarDiagnostics
         private async void ProcessToolTip_Opened(object sender, ToolTipEventArgs e)
         {
             FrameworkElement element = sender as FrameworkElement;
-            Monitoring.ProcessEntry entry = element == null ? null : element.DataContext as Monitoring.ProcessEntry;
+            Monitoring.ProcessEntry entry = null;
+
+            if (element != null)
+            {
+                entry = element.DataContext as Monitoring.ProcessEntry;
+
+                if (entry == null)
+                {
+                    Monitoring.ProcessGroupEntry group = element.DataContext as Monitoring.ProcessGroupEntry;
+                    entry = group == null ? null : group.ToolTipEntry;
+                }
+            }
+
             if (entry == null)
             {
                 return;
